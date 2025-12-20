@@ -10,32 +10,28 @@ import SwiftUI
 struct ComponentPaletteItem: View {
     let componentType: NetworkComponent.ComponentType
     
-    // Podijeli naziv na riječi za prikaz u 2 reda
+    // Split name into 2 lines
     private var nameLines: [String] {
         let name = componentType.displayName
         let words = name.split(separator: " ")
-        
         if words.count <= 1 {
             return [name]
-        } else if words.count == 2 {
-            return [String(words[0]), String(words[1])]
-        } else {
-            // Ako ima više riječi, podijeli na pola
-            let midPoint = words.count / 2
-            let firstLine = words.prefix(midPoint).joined(separator: " ")
-            let secondLine = words.suffix(from: midPoint).joined(separator: " ")
-            return [firstLine, secondLine]
         }
+        let midPoint = words.count / 2
+        let firstLine = words.prefix(midPoint).joined(separator: " ")
+        let secondLine = words.suffix(from: midPoint).joined(separator: " ")
+        return [firstLine, secondLine]
     }
-    
+
     var body: some View {
-        VStack(spacing: 4) {
+        // Standard layout for all components (including DNS and DHCP servers)
+        VStack(spacing: 3) {
             Image(systemName: ComponentIconHelper.icon(for: componentType))
-                .font(.title2)
+                .font(.title2) // Povećano sa .title3 na .title2
                 .foregroundColor(Color(red: 1.0, green: 0.36, blue: 0.0)) // Orange color
-                .frame(width: 40, height: 40)
-            
-            // Naziv u 2 reda
+                .frame(width: 40, height: 40) // Povećano sa 32x32 na 40x40
+
+            // Name in 2 lines
             VStack(spacing: 2) {
                 ForEach(Array(nameLines.enumerated()), id: \.offset) { _, line in
                     Text(line)
@@ -45,12 +41,13 @@ struct ComponentPaletteItem: View {
                         .multilineTextAlignment(.center)
                 }
             }
-            .frame(width: 70)
+            .frame(width: 60)
         }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 6)
-        .background(Color.white.opacity(0.05))
-        .cornerRadius(8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity) // Poštuj frame dimenzije
+        .padding(.vertical, 4)
+        .padding(.horizontal, 4)
+        .background(Color.black.opacity(0.3)) // Crna boja umjesto sive
+        .cornerRadius(6)
     }
 }
 

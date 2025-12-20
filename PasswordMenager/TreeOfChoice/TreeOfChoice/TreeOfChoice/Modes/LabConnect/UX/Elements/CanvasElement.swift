@@ -25,14 +25,12 @@ struct CanvasElementView: View {
     @EnvironmentObject private var localization: LocalizationManager
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Component Palette above canvas
+        VStack(spacing: 20) { // 20px razmak između palette i topologije
+            // Component Palette above canvas - automatska visina
             if canvasElement.showComponentPalette {
                 ComponentPaletteView(draggedComponent: $canvasElement.draggedComponent)
-                    .frame(height: 160)
-                
-                Divider()
-                    .background(Color.white.opacity(0.2))
+                    .padding(.leading, 5) // 5px od lijeve bijele linije
+                    .padding(.trailing, 5) // 5px od desne bijele linije
             }
             
             // Topology frame - 55% of screen height, full width
@@ -53,13 +51,15 @@ struct CanvasElementView: View {
                             )
                         }
                     }
-                    .frame(width: screenGeometry.size.width, height: frameHeight)
+                    .frame(width: screenGeometry.size.width - 10, height: frameHeight) // -10 za padding lijevo/desno
                     .overlay(
                         // Visible border
                         RoundedRectangle(cornerRadius: 8)
                             .stroke(Color.white.opacity(0.5), lineWidth: 2)
                     )
                     .cornerRadius(8)
+                    .padding(.leading, 5) // 5px od lijeve bijele linije
+                    .padding(.trailing, 5) // 5px od desne bijele linije
                     
                     Spacer()
                 }

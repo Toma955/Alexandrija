@@ -137,7 +137,7 @@ struct LabConnectView: View {
             // Action buttons in top right corner (overlay)
             actionButtonsPanel
                 .padding(.top, -5)
-                .padding(.trailing, 16)
+                .padding(.trailing, 5) // 5px od desne bijele linije
         }
     }
     
@@ -245,7 +245,7 @@ struct LabConnectView: View {
         .padding(10)
         .background(Color(red: 0x1A/255.0, green: 0x1A/255.0, blue: 0x1A/255.0))
         .cornerRadius(16)
-        .frame(width: 280)
+        .frame(width: 280, height: 200) // Ista visina kao ComponentPaletteView: 200px
     }
 }
 

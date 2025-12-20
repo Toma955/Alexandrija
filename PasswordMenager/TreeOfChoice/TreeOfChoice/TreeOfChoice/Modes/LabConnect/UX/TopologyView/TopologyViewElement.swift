@@ -139,12 +139,7 @@ class TopologyViewElement: ObservableObject {
     }
     
     func handleComponentDragEnd(_ component: NetworkComponent, finalPosition: CGPoint, geometry: GeometryProxy) {
-        // Update dragging state immediately (we're already on main thread from gesture)
-        isDraggingComponent = false
-        isDraggingOverDelete = false
-        showDeleteButton = false // Hide button immediately when drag ends
-        
-        // Check if dropped over delete button
+        // Check if dropped over delete button first
         let deleteButtonY = geometry.size.height - 60
         let deleteButtonRadius: CGFloat = 30
         let deleteButtonCenterX = geometry.size.width / 2
@@ -154,8 +149,21 @@ class TopologyViewElement: ObservableObject {
         let distance = sqrt(dx * dx + dy * dy)
         
         if distance <= deleteButtonRadius {
+            // Delete component and hide button
             deleteComponent(component)
-        } else if component.isClientA != true && component.isClientB != true {
+            // Osiguraj da se button sakrije nakon brisanja
+            DispatchQueue.main.async {
+                self.isDraggingComponent = false
+                self.isDraggingOverDelete = false
+                self.showDeleteButton = false
+            }
+        } else {
+            // Update dragging state when not deleting
+            isDraggingComponent = false
+            isDraggingOverDelete = false
+            showDeleteButton = false // Hide button immediately when drag ends
+            
+            if component.isClientA != true && component.isClientB != true {
             // Snap to grid on drop (only for non-client components)
             let snappedLocation = GridSnapHelper.snapToGrid(finalPosition)
             let zoneWidth: CGFloat = 110
@@ -171,9 +179,10 @@ class TopologyViewElement: ObservableObject {
                 geometry: geometry
             )
             
-            component.position = newPosition
-            component.objectWillChange.send()
-            topologyElement.topology.objectWillChange.send()
+                component.position = newPosition
+                component.objectWillChange.send()
+                topologyElement.topology.objectWillChange.send()
+            }
         }
     }
     
@@ -198,6 +207,12 @@ class TopologyViewElement: ObservableObject {
     
     func deleteComponent(_ component: NetworkComponent) {
         topologyElement.removeComponent(component)
+        // Osiguraj da se delete button sakrije nakon brisanja
+        DispatchQueue.main.async {
+            self.isDraggingComponent = false
+            self.isDraggingOverDelete = false
+            self.showDeleteButton = false
+        }
     }
     
     func handleConnectionDragStart(_ component: NetworkComponent, fromPoint: CGPoint, toPoint: CGPoint) {
