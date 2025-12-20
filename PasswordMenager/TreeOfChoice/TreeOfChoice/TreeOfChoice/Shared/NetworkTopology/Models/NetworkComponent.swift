@@ -255,6 +255,10 @@ struct NetworkConnection: Identifiable, Codable {
     let fromComponentId: UUID
     let toComponentId: UUID
     var connectionType: ConnectionType
+    var fromConnectionPoint: ConnectionPoint? // Pin s kojeg počinje konekcija
+    var toConnectionPoint: ConnectionPoint? // Pin na koji završava konekcija
+    var controlPoint: CGPoint? // Kontrolna točka za krivulje (2 linije ili parabola)
+    var curveType: CurveType? // Tip krivulje
     
     enum ConnectionType: String, Codable {
         case wired = "wired"
@@ -263,11 +267,60 @@ struct NetworkConnection: Identifiable, Codable {
         case vpn = "vpn"
     }
     
-    init(id: UUID = UUID(), fromComponentId: UUID, toComponentId: UUID, connectionType: ConnectionType = .wired) {
+    enum CurveType: String, Codable {
+        case twoLines = "twoLines" // 2 linije sa središtem u kontrolnoj točki
+        case parabola = "parabola" // Parabola
+    }
+    
+    init(id: UUID = UUID(), fromComponentId: UUID, toComponentId: UUID, connectionType: ConnectionType = .wired, fromConnectionPoint: ConnectionPoint? = nil, toConnectionPoint: ConnectionPoint? = nil, controlPoint: CGPoint? = nil, curveType: CurveType? = nil) {
         self.id = id
         self.fromComponentId = fromComponentId
         self.toComponentId = toComponentId
         self.connectionType = connectionType
+        self.fromConnectionPoint = fromConnectionPoint
+        self.toConnectionPoint = toConnectionPoint
+        self.controlPoint = controlPoint
+        self.curveType = curveType
+    }
+    
+    // MARK: - Codable
+    
+    enum CodingKeys: String, CodingKey {
+        case id, fromComponentId, toComponentId, connectionType, fromConnectionPoint, toConnectionPoint, controlPoint, curveType
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        fromComponentId = try container.decode(UUID.self, forKey: .fromComponentId)
+        toComponentId = try container.decode(UUID.self, forKey: .toComponentId)
+        connectionType = try container.decode(ConnectionType.self, forKey: .connectionType)
+        fromConnectionPoint = try container.decodeIfPresent(ConnectionPoint.self, forKey: .fromConnectionPoint)
+        toConnectionPoint = try container.decodeIfPresent(ConnectionPoint.self, forKey: .toConnectionPoint)
+        curveType = try container.decodeIfPresent(CurveType.self, forKey: .curveType)
+        
+        // Decode controlPoint as dictionary
+        if let controlPointDict = try? container.decode([String: CGFloat].self, forKey: .controlPoint) {
+            controlPoint = CGPoint(x: controlPointDict["x"] ?? 0, y: controlPointDict["y"] ?? 0)
+        } else {
+            controlPoint = nil
+        }
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(fromComponentId, forKey: .fromComponentId)
+        try container.encode(toComponentId, forKey: .toComponentId)
+        try container.encode(connectionType, forKey: .connectionType)
+        try container.encodeIfPresent(fromConnectionPoint, forKey: .fromConnectionPoint)
+        try container.encodeIfPresent(toConnectionPoint, forKey: .toConnectionPoint)
+        try container.encodeIfPresent(curveType, forKey: .curveType)
+        
+        // Encode controlPoint as dictionary
+        if let control = controlPoint {
+            try container.encode(["x": control.x, "y": control.y], forKey: .controlPoint)
+        }
     }
 }
 

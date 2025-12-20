@@ -44,6 +44,8 @@ struct ClientBElementView: View {
     let connectingFrom: NetworkComponent?
     let hoveredPoint: ConnectionPoint?
     let onConnectionDragStart: (NetworkComponent, CGPoint, CGPoint) -> Void
+    let onPinClick: ((NetworkComponent, ConnectionPoint, CGPoint) -> Void)?
+    let onConnectionDragUpdate: ((CGPoint) -> Void)?
     
     var body: some View {
         ClientComponentView(
@@ -57,7 +59,9 @@ struct ClientBElementView: View {
             hoveredPoint: hoveredPoint,
             onTypeChange: { _, type in clientBElement.changeType(to: type) },
             onTap: onTap,
-            onConnectionDragStart: onConnectionDragStart
+            onConnectionDragStart: onConnectionDragStart,
+            onPinClick: onPinClick,
+            onConnectionDragUpdate: onConnectionDragUpdate
         )
     }
 }

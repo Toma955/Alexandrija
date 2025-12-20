@@ -47,9 +47,9 @@ struct ComponentPaletteView: View {
         .padding(.bottom, 10) // 10px od dna
         .frame(maxWidth: .infinity)
         .frame(height: 200) // Fiksna visina: 80 + 20 + 80 + 10 + 10 = 200px
-        .padding(.horizontal, 4) // Smanji kvadrat sa lijeve i desne strane
         .background(Color(red: 0x1A/255.0, green: 0x1A/255.0, blue: 0x1A/255.0))
         .cornerRadius(16)
+        .padding(.horizontal, 4) // Smanji kvadrat sa lijeve i desne strane (NAKON background-a da ne utječe na visinu)
     }
     
     @ViewBuilder

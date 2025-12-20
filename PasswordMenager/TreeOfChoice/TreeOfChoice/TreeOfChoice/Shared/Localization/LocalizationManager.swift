@@ -28,7 +28,7 @@ final class LocalizationManager: ObservableObject {
         do {
             let data = try Data(contentsOf: url)
             let dict = try JSONDecoder().decode([String: String].self, from: data)
-            print("✅ Loaded JSON:", language.rawValue)
+            // print("✅ Loaded JSON:", language.rawValue) // Removed for cleaner console
             return dict
         } catch {
             print("❌ JSON DECODE ERROR:", error)

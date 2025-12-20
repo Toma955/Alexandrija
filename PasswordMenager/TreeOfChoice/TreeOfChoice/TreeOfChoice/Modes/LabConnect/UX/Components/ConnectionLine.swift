@@ -13,6 +13,7 @@ struct ConnectionLine: View {
     let type: NetworkConnection.ConnectionType
     
     var body: some View {
+        // Obična linija
         Path { path in
             path.move(to: from)
             path.addLine(to: to)

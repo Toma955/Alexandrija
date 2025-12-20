@@ -11,6 +11,7 @@ struct ConnectionView: View {
     let connection: NetworkConnection
     @ObservedObject var topology: NetworkTopology
     let geometry: GeometryProxy
+    let onDelete: ((NetworkConnection) -> Void)?
     
     var body: some View {
         Group {
@@ -19,13 +20,33 @@ struct ConnectionView: View {
                 let fromPos = ComponentPositionManager.getAbsolutePosition(for: from, in: geometry)
                 let toPos = ComponentPositionManager.getAbsolutePosition(for: to, in: geometry)
                 
-                // Find the best connection point on each component based on direction
-                let fromPoint = findBestConnectionPoint(componentCenter: fromPos, targetCenter: toPos)
-                let toPoint = findBestConnectionPoint(componentCenter: toPos, targetCenter: fromPos)
+                // Koristi spremljene pinove ako postoje, inače automatski odaberi najbolji
+                let fromPoint = getFromPoint(fromPos: fromPos, toPos: toPos)
+                let toPoint = getToPoint(fromPos: fromPos, toPos: toPos)
                 
-                ConnectionLine(from: fromPoint, to: toPoint, type: connection.connectionType)
-                    .zIndex(1)
+                ConnectionLine(
+                    from: fromPoint,
+                    to: toPoint,
+                    type: connection.connectionType
+                )
+                .zIndex(1)
             }
+        }
+    }
+    
+    private func getFromPoint(fromPos: CGPoint, toPos: CGPoint) -> CGPoint {
+        if let fromPin = connection.fromConnectionPoint {
+            return ConnectionPointDetector.position(for: fromPin, componentCenter: fromPos)
+        } else {
+            return findBestConnectionPoint(componentCenter: fromPos, targetCenter: toPos)
+        }
+    }
+    
+    private func getToPoint(fromPos: CGPoint, toPos: CGPoint) -> CGPoint {
+        if let toPin = connection.toConnectionPoint {
+            return ConnectionPointDetector.position(for: toPin, componentCenter: toPos)
+        } else {
+            return findBestConnectionPoint(componentCenter: toPos, targetCenter: fromPos)
         }
     }
     

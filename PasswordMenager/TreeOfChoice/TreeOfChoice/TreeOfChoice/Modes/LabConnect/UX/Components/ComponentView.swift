@@ -16,10 +16,16 @@ struct ComponentView: View {
     let onTap: (NetworkComponent) -> Void
     let onDrag: (NetworkComponent, CGPoint) -> Void
     let onConnectionDragStart: (NetworkComponent, CGPoint, CGPoint) -> Void
+    let onConnectionDragUpdate: ((CGPoint) -> Void)?
+    let onPinClick: ((NetworkComponent, ConnectionPoint, CGPoint) -> Void)?
+    let onDragUpdate: ((NetworkComponent, CGPoint) -> Void)?
+    let onDelete: ((NetworkComponent) -> Void)?
     
     @State private var dragOffset: CGSize = .zero
     @State private var isDragging = false
     @State private var dragStartPosition: CGPoint = .zero
+    @State private var draggingConnection: Bool = false
+    @State private var pinClickStarted: Bool = false // Provjera da se pinClick pozove samo jednom
     
     var body: some View {
         let absoluteX = calculateAbsoluteX()
@@ -35,66 +41,87 @@ struct ComponentView: View {
             y: calculateAbsoluteY() + (isDragging ? dragOffset.height : 0)
         )
         .gesture(
-            DragGesture(minimumDistance: 1)
+            // JEDAN gesture s minimumDistance: 0 da hvata i klik i drag
+            DragGesture(minimumDistance: 0)
                 .onChanged { value in
-                    let componentCenter = CGPoint(x: absoluteX, y: calculateAbsoluteY())
+                    let absoluteY = calculateAbsoluteY()
+                    let componentCenter = CGPoint(x: absoluteX, y: absoluteY)
                     
-                    // Check if starting from connection point (within 20px radius)
-                    let connectionPointRadius: CGFloat = 20
-                    let startDx = value.startLocation.x
-                    let startDy = value.startLocation.y
-                    let distanceFromCenter = sqrt(startDx * startDx + startDy * startDy)
+                    // KLJUČNO: value.startLocation i value.location su GLOBALNE koordinate (relativne na parent view/canvas)
+                    // jer ComponentView koristi .position() modifier
+                    let startLocationGlobal = value.startLocation
+                    let currentLocationGlobal = value.location
                     
-                    // Check if near a connection point (45px from center)
-                    if abs(distanceFromCenter - 45) < connectionPointRadius {
-                        // Starting connection drag from connection point
-                        let globalLocation = CGPoint(
-                            x: absoluteX + value.location.x,
-                            y: calculateAbsoluteY() + value.location.y
-                        )
-                        let connectionPointPos = ConnectionPointDetector.closestPoint(from: componentCenter, to: globalLocation)
-                        onConnectionDragStart(component, connectionPointPos, globalLocation)
-                    } else {
-                        // Normal component drag - icon stays fixed to mouse
-                        if !isDragging {
-                            isDragging = true
-                            // Remember starting position when drag begins
-                            dragStartPosition = CGPoint(x: absoluteX, y: calculateAbsoluteY())
+                    // Provjeri je li klik na connection point (koristi ConnectionPointDetector s globalnim koordinatama)
+                    if let connectionPoint = ConnectionPointDetector.detect(at: startLocationGlobal, componentCenter: componentCenter) {
+                        let pinPosition = ConnectionPointDetector.position(for: connectionPoint, componentCenter: componentCenter)
+                        
+                        // KLJUČNO: Kada se klikne na pin, pozovi onPinClick (samo jednom)
+                        if !pinClickStarted && onPinClick != nil {
+                            pinClickStarted = true
+                            draggingConnection = true
+                            onPinClick?(component, connectionPoint, pinPosition)
                         }
                         
-                        // Update drag offset - icon follows mouse exactly
+                        // Ažuriraj toPoint kontinuirano dok se vuče (krug prati miš)
+                        if draggingConnection {
+                            onConnectionDragUpdate?(currentLocationGlobal)
+                        }
+                    } else {
+                        // Normal component drag - track offset
+                        if !isDragging {
+                            isDragging = true
+                            dragStartPosition = CGPoint(x: absoluteX, y: absoluteY)
+                        }
                         dragOffset = CGSize(
                             width: value.location.x - value.startLocation.x,
                             height: value.location.y - value.startLocation.y
                         )
                         
-                        // DO NOT call onDrag during drag - icon position is only visual via dragOffset
-                        // Position will be updated only on drop (onEnded)
+                        // Pass current drag location for delete button detection
+                        let globalLocation = CGPoint(
+                            x: absoluteX + dragOffset.width,
+                            y: absoluteY + dragOffset.height
+                        )
+                        onDragUpdate?(component, globalLocation)
                     }
                 }
                 .onEnded { value in
+                    // Ako je bio connection drag, resetiraj state
+                    if draggingConnection {
+                        draggingConnection = false
+                        pinClickStarted = false
+                    }
+                    
                     if isDragging {
-                        // Calculate final position based on drag start position + offset
-                        let finalX = dragStartPosition.x + dragOffset.width
-                        let finalY = dragStartPosition.y + dragOffset.height
-                        let finalPosition = CGPoint(x: finalX, y: finalY)
+                        // Check if dropped over delete button
+                        let deleteButtonY = geometry.size.height - 60
+                        let deleteButtonRadius: CGFloat = 30
+                        let deleteButtonCenterX = geometry.size.width / 2
                         
-                        // Snap to nearest grid point
-                        let snappedPosition = GridSnapHelper.snapToGrid(finalPosition)
+                        let finalDragLocation = CGPoint(
+                            x: dragStartPosition.x + dragOffset.width,
+                            y: dragStartPosition.y + dragOffset.height
+                        )
                         
-                        // Update component to snapped position (only now, not during drag)
-                        onDrag(component, snappedPosition)
+                        let dx = finalDragLocation.x - deleteButtonCenterX
+                        let dy = finalDragLocation.y - deleteButtonY
+                        let distance = sqrt(dx * dx + dy * dy)
+                        
+                        if distance <= deleteButtonRadius {
+                            onDelete?(component)
+                        } else {
+                            // Final position update with grid snap
+                            let snappedPosition = GridSnapHelper.snapToGrid(finalDragLocation)
+                            onDrag(component, snappedPosition)
+                        }
                         
                         // Reset drag state
                         isDragging = false
                         dragOffset = .zero
-                        dragStartPosition = .zero
                     }
                 }
         )
-        .onTapGesture {
-            onTap(component)
-        }
     }
     
     private func calculateAbsoluteX() -> CGFloat {
@@ -138,8 +165,8 @@ struct ComponentView: View {
     }
     
     private func determineIconColor(absoluteX: CGFloat) -> Color {
-        // User i Area elementi koriste custom boju ako je postavljena, inače narančasta
-        if component.componentType.supportsCustomColor {
+        // User element koristi custom boju ako je postavljena, inače narančasta
+        if component.componentType == .user {
             return component.customColor ?? Color(red: 1.0, green: 0.36, blue: 0.0) // Orange default
         }
         
@@ -156,6 +183,5 @@ struct ComponentView: View {
             return .gray
         }
     }
-    
 }
 

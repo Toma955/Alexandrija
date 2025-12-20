@@ -19,6 +19,8 @@ struct ClientComponentView: View {
     let onTypeChange: (NetworkComponent, NetworkComponent.ComponentType) -> Void
     let onTap: (NetworkComponent) -> Void
     let onConnectionDragStart: (NetworkComponent, CGPoint, CGPoint) -> Void
+    let onPinClick: ((NetworkComponent, ConnectionPoint, CGPoint) -> Void)?
+    let onConnectionDragUpdate: ((CGPoint) -> Void)?
     
     private let types: [NetworkComponent.ComponentType] = [.laptop, .desktop, .tablet, .mobile]
     
@@ -27,16 +29,12 @@ struct ClientComponentView: View {
             Color(red: 0.0, green: 0.2, blue: 1.0) : // Blue
             Color(red: 0.0, green: 0.9, blue: 0.1)  // Green
         
-        let pinColor: Color = component.isClientA == true ?
-            Color(red: 0.0, green: 0.2, blue: 1.0) : // Blue
-            Color(red: 0.0, green: 0.9, blue: 0.1)  // Green
-        
         let currentIndex = types.firstIndex(of: component.componentType) ?? 0
         let nextType = types[(currentIndex + 1) % types.count]
         
         let componentCenter = CGPoint(x: x, y: y)
         
-        return NetworkComponentView(component: component, iconColor: iconColor, pinColor: pinColor, hoveredPoint: hoveredPoint)
+        return NetworkComponentView(component: component, iconColor: iconColor, hoveredPoint: hoveredPoint)
             .frame(width: 90, height: 90)
             .contentShape(Rectangle())
             .position(x: x, y: y)
@@ -44,27 +42,30 @@ struct ClientComponentView: View {
             .gesture(
                 DragGesture(minimumDistance: 1)
                     .onChanged { value in
-                        // Check if starting from connection point (within 20px radius)
-                        let connectionPointRadius: CGFloat = 20
-                        // Calculate distance from center of component (45px is connection point distance)
-                        let startDx = value.startLocation.x - 45 // Offset from component center
-                        let startDy = value.startLocation.y - 45
-                        let distanceFromCenter = sqrt(startDx * startDx + startDy * startDy)
+                        // Check if starting from connection point
+                        // Component frame je 90x90, centar je na 45,45
+                        let componentFrameCenter = CGPoint(x: 45, y: 45)
+                        let startLocation = CGPoint(
+                            x: x + (value.startLocation.x - componentFrameCenter.x),
+                            y: y + (value.startLocation.y - componentFrameCenter.y)
+                        )
                         
-                        // Check if near a connection point (45px from center)
-                        if abs(distanceFromCenter - 45) < connectionPointRadius || distanceFromCenter < connectionPointRadius {
-                            // Starting connection drag from connection point
-                            // Convert local coordinates to global
-                            let globalStart = CGPoint(
-                                x: x + value.startLocation.x - 45,
-                                y: y + value.startLocation.y - 45
+                        // Provjeri je li klik na connection point (koristi ConnectionPointDetector)
+                        if let connectionPoint = ConnectionPointDetector.detect(at: startLocation, componentCenter: componentCenter) {
+                            // Klik na pin - stvori krug momentalno
+                            let pinPosition = ConnectionPointDetector.position(for: connectionPoint, componentCenter: componentCenter)
+                            let globalLocation = CGPoint(
+                                x: x + (value.location.x - componentFrameCenter.x),
+                                y: y + (value.location.y - componentFrameCenter.y)
                             )
-                            let globalCurrent = CGPoint(
-                                x: x + value.location.x - 45,
-                                y: y + value.location.y - 45
-                            )
-                            let connectionPointPos = ConnectionPointDetector.closestPoint(from: componentCenter, to: globalStart)
-                            onConnectionDragStart(component, connectionPointPos, globalCurrent)
+                            
+                            // Stvori krug momentalno (samo jednom)
+                            if onPinClick != nil {
+                                onPinClick?(component, connectionPoint, pinPosition)
+                            }
+                            
+                            // Ažuriraj poziciju kruga da prati miš
+                            onConnectionDragUpdate?(globalLocation)
                         }
                     }
             )

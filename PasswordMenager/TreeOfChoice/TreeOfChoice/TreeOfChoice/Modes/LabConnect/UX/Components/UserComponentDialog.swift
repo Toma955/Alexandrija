@@ -42,8 +42,8 @@ struct UserComponentDialog: View {
     
     var body: some View {
         VStack(spacing: 20) {
-            // Naslov - dinamički ovisno o tipu komponente
-            Text(component.componentType.displayName + " Settings")
+            // Naslov
+            Text("User Settings")
                 .font(.title2.bold())
                 .foregroundColor(.white)
             

@@ -20,7 +20,7 @@ class TopologyViewElement: ObservableObject {
     @Published var showUserDialog: Bool = false
     @Published var selectedUserComponent: NetworkComponent?
     @Published var connectingFrom: NetworkComponent?
-    @Published var draggingConnection: (from: NetworkComponent, fromPoint: CGPoint, toPoint: CGPoint)?
+    @Published var draggingConnection: (from: NetworkComponent, fromPoint: CGPoint, fromConnectionPoint: ConnectionPoint, toPoint: CGPoint)?
     @Published var hoveredConnectionPoint: (component: NetworkComponent, point: ConnectionPoint)?
     @Published var mouseLocation: CGPoint = .zero
     @Published var isDraggingComponent: Bool = false
@@ -215,21 +215,52 @@ class TopologyViewElement: ObservableObject {
         }
     }
     
-    func handleConnectionDragStart(_ component: NetworkComponent, fromPoint: CGPoint, toPoint: CGPoint) {
+    func handleConnectionDragStart(_ component: NetworkComponent, fromPoint: CGPoint, toPoint: CGPoint, geometry: GeometryProxy) {
         if draggingConnection == nil {
-            draggingConnection = (from: component, fromPoint: fromPoint, toPoint: toPoint)
+            // Fallback metoda - ako se koristi bez pin klika, nemamo fromConnectionPoint
+            // Koristimo automatski odabir najbližeg pina
+            let componentCenter = ComponentPositionManager.getAbsolutePosition(for: component, in: geometry)
+            let fromConnectionPoint = ConnectionPointDetector.detect(at: fromPoint, componentCenter: componentCenter) ?? .top
+            draggingConnection = (from: component, fromPoint: fromPoint, fromConnectionPoint: fromConnectionPoint, toPoint: toPoint)
         }
     }
     
-    func handleConnectionDragUpdate(_ location: CGPoint) {
-        if let dragging = draggingConnection {
-            draggingConnection = (from: dragging.from, fromPoint: dragging.fromPoint, toPoint: location)
+    func handlePinClick(_ component: NetworkComponent, connectionPoint: ConnectionPoint, pinPosition: CGPoint) {
+        // Provjeri da li pin već ima konekciju
+        let existingConnections = topologyElement.topology.getConnections(for: component.id)
+        if let existingConnection = existingConnections.first(where: { conn in
+            // Provjeri je li konekcija na ovom pinu
+            if conn.fromComponentId == component.id, let fromPin = conn.fromConnectionPoint {
+                return fromPin == connectionPoint
+            } else if conn.toComponentId == component.id, let toPin = conn.toConnectionPoint {
+                return toPin == connectionPoint
+            }
+            return false
+        }) {
+            // Pin već ima konekciju - obriši je (odspoji pin)
+            topologyElement.removeConnection(existingConnection)
         }
-    }
-    
-    func handleConnectionDragEnd(_ location: CGPoint, geometry: GeometryProxy) {
-        guard let dragging = draggingConnection else { return }
         
+        // Započni connection dragging od klika na pin
+        // Novi krug se stvara na poziciji pina i prati miš
+        if draggingConnection == nil {
+            // fromPoint je pozicija originalnog pina (gdje je kliknut)
+            // toPoint počinje na poziciji pina (krug se stvara na pinu), zatim prati miš
+            // Ako je miš dostupan, odmah postavi toPoint na poziciju miša
+            let initialToPoint = mouseLocation != .zero ? mouseLocation : pinPosition
+            draggingConnection = (from: component, fromPoint: pinPosition, fromConnectionPoint: connectionPoint, toPoint: initialToPoint)
+        }
+    }
+    
+    func handleConnectionDragUpdate(_ location: CGPoint, geometry: GeometryProxy) {
+        guard let dragging = draggingConnection else {
+            return
+        }
+        
+        // Krug prati miš - ažuriraj toPoint da prati trenutnu poziciju miša
+        var finalToPoint = location
+        
+        // Provjeri je li novi pin blizu drugog pina (snap to pin)
         if let targetComponent = ComponentPositionManager.findComponent(
             at: location,
             in: topologyElement.topology.components,
@@ -237,11 +268,44 @@ class TopologyViewElement: ObservableObject {
             exclude: dragging.from
         ) {
             let targetCenter = ComponentPositionManager.getAbsolutePosition(for: targetComponent, in: geometry)
-            if ConnectionPointDetector.detect(at: location, componentCenter: targetCenter) != nil {
-                topologyElement.addConnection(from: dragging.from.id, to: targetComponent.id)
+            if let connectionPoint = ConnectionPointDetector.detect(at: location, componentCenter: targetCenter) {
+                // Novi pin je blizu drugog pina - spoji ga na taj pin
+                finalToPoint = ConnectionPointDetector.position(for: connectionPoint, componentCenter: targetCenter)
             }
         }
         
+        // Ažuriraj dragging connection - krug prati miš
+        // OVO JE KLJUČNO - ažuriraj @Published property da triggera UI update
+        draggingConnection = (from: dragging.from, fromPoint: dragging.fromPoint, fromConnectionPoint: dragging.fromConnectionPoint, toPoint: finalToPoint)
+    }
+    
+    func handleConnectionDragEnd(_ location: CGPoint, geometry: GeometryProxy) {
+        guard let dragging = draggingConnection else { return }
+        
+        // Provjeri je li drop na pin drugog komponenta
+        if let targetComponent = ComponentPositionManager.findComponent(
+            at: location,
+            in: topologyElement.topology.components,
+            geometry: geometry,
+            exclude: dragging.from
+        ) {
+            let targetCenter = ComponentPositionManager.getAbsolutePosition(for: targetComponent, in: geometry)
+            if let toConnectionPoint = ConnectionPointDetector.detect(at: location, componentCenter: targetCenter) {
+                // Spoji konekciju s točnim pinovima
+                topologyElement.addConnection(
+                    from: dragging.from.id,
+                    to: targetComponent.id,
+                    fromConnectionPoint: dragging.fromConnectionPoint,
+                    toConnectionPoint: toConnectionPoint
+                )
+            } else {
+                // Nije drop na pin - linija se gubi (ne stvara se konekcija)
+            }
+        } else {
+            // Nije drop na komponentu - linija se gubi (ne stvara se konekcija)
+        }
+        
+        // Reset dragging connection
         draggingConnection = nil
     }
     
@@ -268,6 +332,25 @@ struct TopologyViewElementView: View {
     @ObservedObject var topologyViewElement: TopologyViewElement
     let geometry: GeometryProxy
     
+    // Helper za provjeru je li novi pin blizu drugog pina
+    private func isNearTargetPin(_ location: CGPoint) -> (component: NetworkComponent, pinPosition: CGPoint)? {
+        guard let dragging = topologyViewElement.draggingConnection else { return nil }
+        
+        if let targetComponent = ComponentPositionManager.findComponent(
+            at: location,
+            in: topologyViewElement.topologyElement.topology.components,
+            geometry: geometry,
+            exclude: dragging.from
+        ) {
+            let targetCenter = ComponentPositionManager.getAbsolutePosition(for: targetComponent, in: geometry)
+            if let connectionPoint = ConnectionPointDetector.detect(at: location, componentCenter: targetCenter) {
+                let pinPosition = ConnectionPointDetector.position(for: connectionPoint, componentCenter: targetCenter)
+                return (targetComponent, pinPosition)
+            }
+        }
+        return nil
+    }
+    
     var body: some View {
         ZStack {
             // Background grid
@@ -283,11 +366,28 @@ struct TopologyViewElementView: View {
             
             // Dragging connection line (temporary while dragging)
             if let dragging = topologyViewElement.draggingConnection {
-                ConnectionLine(
-                    from: dragging.fromPoint,
-                    to: dragging.toPoint,
-                    type: .wired
-                )
+                // Provjeri je li novi pin blizu drugog pina
+                if let target = isNearTargetPin(dragging.toPoint) {
+                    // Spoji liniju na drugi pin
+                    ConnectionLine(
+                        from: dragging.fromPoint,
+                        to: target.pinPosition,
+                        type: .wired
+                    )
+                } else {
+                    // Siva vidljiva linija od originalnog pina do kruga koji prati miš
+                    ConnectionLine(
+                        from: dragging.fromPoint,
+                        to: dragging.toPoint,
+                        type: .wired
+                    )
+                    
+                    // Novi krug koji prati miš - stvoren na poziciji pina, sada prati miš
+                    Circle()
+                        .fill(Color.gray)
+                        .frame(width: 14, height: 14)
+                        .position(dragging.toPoint)
+                }
             }
             
             // Animated packets layer
@@ -333,31 +433,56 @@ struct TopologyViewElementView: View {
             topology: topologyViewElement.topologyElement.topology,
             geometry: geometry
         ))
+        .background(
+            // Invisible background za hvatanje mouse events
+            Color.clear
+                .contentShape(Rectangle())
+                .allowsHitTesting(true)
+                .gesture(
+                    // GLOBALNI gesture koji prati miš CIJELO VRIJEME kada postoji draggingConnection
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            topologyViewElement.mouseLocation = value.location
+                            
+                            // KLJUČNO: Ako postoji dragging connection, KONTINUIRANO ažuriraj toPoint da prati kursor
+                            if topologyViewElement.draggingConnection != nil {
+                                topologyViewElement.handleConnectionDragUpdate(value.location, geometry: geometry)
+                                updateHoveredConnectionPoint(at: value.location, geometry: geometry)
+                            } else {
+                                updateHoveredConnectionPoint(at: value.location, geometry: geometry)
+                            }
+                        }
+                        .onEnded { value in
+                            // Ne završavaj konekciju ovdje - to se radi klikom na drugi pin
+                            // Samo resetuj hovered point ako nema dragging connection
+                            if topologyViewElement.draggingConnection == nil {
+                                topologyViewElement.hoveredConnectionPoint = nil
+                            }
+                        }
+                )
+        )
         .simultaneousGesture(
-            // Global gesture to update dragging connection
+            // SIMULTANEOUS gesture - aktivira se ISTOVREMENO s gesture-ima na komponentama
+            // OVO JE KLJUČNO za praćenje miša kada se klikne na pin
             DragGesture(minimumDistance: 0)
                 .onChanged { value in
-                    topologyViewElement.mouseLocation = value.location
-                    
-                    // Only handle if dragging connection, not component
+                    // Ako postoji dragging connection, KONTINUIRANO ažuriraj poziciju kruga
+                    // OVO SE POZIVA CIJELO VRIJEME dok se drži klik, BEZ OBZIRA gdje je miš
                     if topologyViewElement.draggingConnection != nil {
-                        topologyViewElement.handleConnectionDragUpdate(value.location)
-                        updateHoveredConnectionPoint(at: value.location, geometry: geometry)
-                    } else {
-                        updateHoveredConnectionPoint(at: value.location, geometry: geometry)
+                        topologyViewElement.mouseLocation = value.location
+                        topologyViewElement.handleConnectionDragUpdate(value.location, geometry: geometry)
                     }
-                }
-                .onEnded { value in
-                    if topologyViewElement.draggingConnection != nil {
-                        topologyViewElement.handleConnectionDragEnd(value.location, geometry: geometry)
-                    }
-                    topologyViewElement.hoveredConnectionPoint = nil
                 }
         )
         .onContinuousHover { phase in
             switch phase {
             case .active(let location):
                 topologyViewElement.mouseLocation = location
+                // Ako postoji dragging connection, KONTINUIRANO ažuriraj toPoint da prati kursor (krug prati miš)
+                if topologyViewElement.draggingConnection != nil {
+                    // OVO JE KLJUČNO - kontinuirano ažuriraj poziciju kruga dok se drži klik
+                    topologyViewElement.handleConnectionDragUpdate(location, geometry: geometry)
+                }
                 updateHoveredConnectionPoint(at: location, geometry: geometry)
             case .ended:
                 if topologyViewElement.draggingConnection == nil {
@@ -365,14 +490,35 @@ struct TopologyViewElementView: View {
                 }
             }
         }
-        .onTapGesture {
-            if topologyViewElement.connectingFrom != nil {
-                topologyViewElement.connectingFrom = nil
-            }
-            if topologyViewElement.draggingConnection != nil {
-                topologyViewElement.draggingConnection = nil
-            }
-        }
+        .simultaneousGesture(
+            // Tap gesture za završetak konekcije klikom na pin
+            DragGesture(minimumDistance: 0)
+                .onEnded { value in
+                    // Provjeri je li klik na pin drugog komponenta dok se vuče konekcija
+                    if let dragging = topologyViewElement.draggingConnection {
+                        if let targetComponent = ComponentPositionManager.findComponent(
+                            at: value.location,
+                            in: topologyViewElement.topologyElement.topology.components,
+                            geometry: geometry,
+                            exclude: dragging.from
+                        ) {
+                            let targetCenter = ComponentPositionManager.getAbsolutePosition(for: targetComponent, in: geometry)
+                            if let connectionPoint = ConnectionPointDetector.detect(at: value.location, componentCenter: targetCenter) {
+                                // Klik na pin drugog komponenta - završi konekciju
+                                let pinPosition = ConnectionPointDetector.position(for: connectionPoint, componentCenter: targetCenter)
+                                topologyViewElement.handleConnectionDragEnd(pinPosition, geometry: geometry)
+                                return
+                            }
+                        }
+                        // Klik negdje drugdje ili puštanje - završi konekciju
+                        topologyViewElement.handleConnectionDragEnd(value.location, geometry: geometry)
+                    }
+                    
+                    if topologyViewElement.connectingFrom != nil {
+                        topologyViewElement.connectingFrom = nil
+                    }
+                }
+        )
     }
     
     // MARK: - Layers
@@ -387,7 +533,9 @@ struct TopologyViewElementView: View {
                 hoveredPoint: topologyViewElement.hoveredConnectionPoint?.component.id == component.id ? topologyViewElement.hoveredConnectionPoint?.point : nil,
                 onTap: { topologyViewElement.handleComponentTap($0) },
                 onDrag: { comp, location in topologyViewElement.handleComponentDragEnd(comp, finalPosition: location, geometry: geometry) },
-                onConnectionDragStart: { comp, start, current in topologyViewElement.handleConnectionDragStart(comp, fromPoint: start, toPoint: current) },
+                onConnectionDragStart: { comp, start, current in topologyViewElement.handleConnectionDragStart(comp, fromPoint: start, toPoint: current, geometry: geometry) },
+                onConnectionDragUpdate: { location in topologyViewElement.handleConnectionDragUpdate(location, geometry: geometry) },
+                onPinClick: { comp, point, position in topologyViewElement.handlePinClick(comp, connectionPoint: point, pinPosition: position) },
                 onDragUpdate: { comp, location in 
                     topologyViewElement.handleComponentDragUpdate(comp, location: location, geometry: geometry)
                 },
@@ -401,7 +549,8 @@ struct TopologyViewElementView: View {
             ConnectionView(
                 connection: connection,
                 topology: topologyViewElement.topologyElement.topology,
-                geometry: geometry
+                geometry: geometry,
+                onDelete: { conn in topologyViewElement.topologyElement.removeConnection(conn) }
             )
         }
     }

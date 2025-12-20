@@ -22,6 +22,7 @@ struct TopologyCanvasView: View {
     let onConnectionDragStart: (NetworkComponent, CGPoint, CGPoint) -> Void
     let onConnectionDragUpdate: (CGPoint) -> Void
     let onConnectionDragEnd: (CGPoint, GeometryProxy) -> Void
+    var onConnectionDelete: ((NetworkConnection) -> Void)? = nil
     
     var body: some View {
         GeometryReader { geometry in
@@ -146,7 +147,11 @@ struct TopologyCanvasView: View {
                 hoveredPoint: hoveredConnectionPoint?.component.id == component.id ? hoveredConnectionPoint?.point : nil,
                 onTap: { onComponentTap($0) },
                 onDrag: { comp, location in onComponentDrag(comp, location, geometry) },
-                onConnectionDragStart: { comp, start, current in onConnectionDragStart(comp, start, current) }
+                onConnectionDragStart: { comp, start, current in onConnectionDragStart(comp, start, current) },
+                onConnectionDragUpdate: nil, // TopologyCanvasView doesn't handle connection drag updates directly
+                onPinClick: nil, // TopologyCanvasView doesn't handle pin clicks directly
+                onDragUpdate: nil,
+                onDelete: nil
             )
         }
     }
@@ -165,7 +170,9 @@ struct TopologyCanvasView: View {
                     hoveredPoint: hoveredConnectionPoint?.component.id == clientA.id ? hoveredConnectionPoint?.point : nil,
                     onTypeChange: { changeClientType($0, to: $1) },
                     onTap: { onComponentTap($0) },
-                    onConnectionDragStart: onConnectionDragStart
+                    onConnectionDragStart: { comp, start, current in onConnectionDragStart(comp, start, current) },
+                    onPinClick: nil,
+                    onConnectionDragUpdate: nil
                 )
             }
             if let clientB = topology.clientB {
@@ -180,7 +187,9 @@ struct TopologyCanvasView: View {
                     hoveredPoint: hoveredConnectionPoint?.component.id == clientB.id ? hoveredConnectionPoint?.point : nil,
                     onTypeChange: { changeClientType($0, to: $1) },
                     onTap: { onComponentTap($0) },
-                    onConnectionDragStart: onConnectionDragStart
+                    onConnectionDragStart: { comp, start, current in onConnectionDragStart(comp, start, current) },
+                    onPinClick: nil,
+                    onConnectionDragUpdate: nil
                 )
             }
         }
@@ -191,7 +200,8 @@ struct TopologyCanvasView: View {
             ConnectionView(
                 connection: connection,
                 topology: topology,
-                geometry: geometry
+                geometry: geometry,
+                onDelete: onConnectionDelete
             )
         }
     }

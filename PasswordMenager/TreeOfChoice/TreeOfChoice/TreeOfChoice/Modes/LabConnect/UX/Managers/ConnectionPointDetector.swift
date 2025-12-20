@@ -7,27 +7,43 @@
 
 import SwiftUI
 
-enum ConnectionPoint {
+enum ConnectionPoint: String, Codable {
     case top, bottom, left, right
 }
 
 struct ConnectionPointDetector {
     static func detect(at location: CGPoint, componentCenter: CGPoint) -> ConnectionPoint? {
         let connectionPointDistance: CGFloat = 45
-        let hitRadius: CGFloat = 15
+        let hitRadius: CGFloat = 25 // Povećano sa 20 na 25 za bolju detekciju svih pinova
         
-        let dx = location.x - componentCenter.x
-        let dy = location.y - componentCenter.y
+        // Izračunaj pozicije svakog connection pointa
+        let topPoint = CGPoint(x: componentCenter.x, y: componentCenter.y - connectionPointDistance)
+        let bottomPoint = CGPoint(x: componentCenter.x, y: componentCenter.y + connectionPointDistance)
+        let leftPoint = CGPoint(x: componentCenter.x - connectionPointDistance, y: componentCenter.y)
+        let rightPoint = CGPoint(x: componentCenter.x + connectionPointDistance, y: componentCenter.y)
         
-        // Check each direction
-        if abs(dy + connectionPointDistance) < hitRadius && abs(dx) < hitRadius {
-            return .top
-        } else if abs(dy - connectionPointDistance) < hitRadius && abs(dx) < hitRadius {
-            return .bottom
-        } else if abs(dx + connectionPointDistance) < hitRadius && abs(dy) < hitRadius {
-            return .left
-        } else if abs(dx - connectionPointDistance) < hitRadius && abs(dy) < hitRadius {
-            return .right
+        // Izračunaj euklidsku udaljenost od lokacije do svakog connection pointa
+        func distance(_ p1: CGPoint, _ p2: CGPoint) -> CGFloat {
+            let dx = p1.x - p2.x
+            let dy = p1.y - p2.y
+            return sqrt(dx * dx + dy * dy)
+        }
+        
+        let topDistance = distance(location, topPoint)
+        let bottomDistance = distance(location, bottomPoint)
+        let leftDistance = distance(location, leftPoint)
+        let rightDistance = distance(location, rightPoint)
+        
+        // Pronađi najbliži connection point
+        let distances: [(CGFloat, ConnectionPoint)] = [
+            (topDistance, .top),
+            (bottomDistance, .bottom),
+            (leftDistance, .left),
+            (rightDistance, .right)
+        ]
+        
+        if let closest = distances.min(by: { $0.0 < $1.0 }), closest.0 < hitRadius {
+            return closest.1
         }
         
         return nil

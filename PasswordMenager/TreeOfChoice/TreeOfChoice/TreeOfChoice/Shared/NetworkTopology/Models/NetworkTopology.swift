@@ -22,7 +22,7 @@ class NetworkTopology: ObservableObject, Codable {
     
     // MARK: - Connection Management
     
-    func addConnection(from: UUID, to: UUID, type: NetworkConnection.ConnectionType = .wired) {
+    func addConnection(from: UUID, to: UUID, type: NetworkConnection.ConnectionType = .wired, fromConnectionPoint: ConnectionPoint? = nil, toConnectionPoint: ConnectionPoint? = nil) {
         // Check if connection already exists
         guard !connections.contains(where: { 
             ($0.fromComponentId == from && $0.toComponentId == to) ||
@@ -32,7 +32,9 @@ class NetworkTopology: ObservableObject, Codable {
         let connection = NetworkConnection(
             fromComponentId: from,
             toComponentId: to,
-            connectionType: type
+            connectionType: type,
+            fromConnectionPoint: fromConnectionPoint,
+            toConnectionPoint: toConnectionPoint
         )
         connections.append(connection)
     }

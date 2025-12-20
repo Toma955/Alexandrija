@@ -60,6 +60,8 @@ struct ZoneElementView: View {
     let onClientTap: (NetworkComponent) -> Void
     let onClientTypeChange: (NetworkComponent, NetworkComponent.ComponentType) -> Void
     let onConnectionDragStart: (NetworkComponent, CGPoint, CGPoint) -> Void
+    let onPinClick: ((NetworkComponent, ConnectionPoint, CGPoint) -> Void)?
+    let onConnectionDragUpdate: ((CGPoint) -> Void)?
     
     // Calculate client position: 2/3 of window height, centered in bottom half of zone
     private var clientHeight: CGFloat {
@@ -122,7 +124,9 @@ struct ZoneElementView: View {
                     hoveredPoint: hoveredConnectionPoint?.component.id == client.id ? hoveredConnectionPoint?.point : nil,
                     onTypeChange: onClientTypeChange,
                     onTap: onClientTap,
-                    onConnectionDragStart: onConnectionDragStart
+                    onConnectionDragStart: onConnectionDragStart,
+                    onPinClick: onPinClick,
+                    onConnectionDragUpdate: onConnectionDragUpdate
                 )
             }
         }

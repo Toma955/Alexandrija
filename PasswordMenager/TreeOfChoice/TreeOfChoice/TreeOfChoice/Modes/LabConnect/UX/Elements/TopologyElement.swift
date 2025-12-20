@@ -33,9 +33,22 @@ class TopologyElement: ObservableObject {
         topology.objectWillChange.send()
     }
     
-    func addConnection(from: UUID, to: UUID) {
-        topology.addConnection(from: from, to: to)
+    func addConnection(from: UUID, to: UUID, fromConnectionPoint: ConnectionPoint? = nil, toConnectionPoint: ConnectionPoint? = nil) {
+        topology.addConnection(from: from, to: to, fromConnectionPoint: fromConnectionPoint, toConnectionPoint: toConnectionPoint)
         topology.objectWillChange.send()
+    }
+    
+    func removeConnection(_ connection: NetworkConnection) {
+        topology.removeConnection(connection)
+        topology.objectWillChange.send()
+    }
+    
+    func updateConnection(_ connection: NetworkConnection, controlPoint: CGPoint?, curveType: NetworkConnection.CurveType?) {
+        if let index = topology.connections.firstIndex(where: { $0.id == connection.id }) {
+            topology.connections[index].controlPoint = controlPoint
+            topology.connections[index].curveType = curveType
+            topology.objectWillChange.send()
+        }
     }
     
     func deleteAllTopology() {
@@ -69,6 +82,9 @@ struct TopologyElementView: View {
     let onConnectionDragEnd: (CGPoint, GeometryProxy) -> Void
     let onComponentDragUpdate: ((NetworkComponent, CGPoint) -> Void)?
     let onComponentDelete: ((NetworkComponent) -> Void)?
+    let onPinClick: ((NetworkComponent, ConnectionPoint, CGPoint) -> Void)?
+    let onConnectionDelete: ((NetworkConnection) -> Void)?
+    let onConnectionAddControlPoint: ((NetworkConnection, CGPoint, NetworkConnection.CurveType) -> Void)?
     @Binding var selectedComponent: NetworkComponent?
     @Binding var showComponentDetail: Bool
     @Binding var connectingFrom: NetworkComponent?
@@ -174,6 +190,8 @@ struct TopologyElementView: View {
                 onTap: { onComponentTap($0) },
                 onDrag: { comp, location in onComponentDrag(comp, location, geometry) },
                 onConnectionDragStart: { comp, start, current in onConnectionDragStart(comp, start, current) },
+                onConnectionDragUpdate: nil, // TopologyElement doesn't handle connection drag updates directly
+                onPinClick: nil, // TopologyElement doesn't handle pin clicks directly
                 onDragUpdate: onComponentDragUpdate != nil ? { comp, location in onComponentDragUpdate?(comp, location) } : nil,
                 onDelete: onComponentDelete
             )
@@ -194,7 +212,9 @@ struct TopologyElementView: View {
                     hoveredConnectionPoint: hoveredConnectionPoint,
                     onClientTap: { _ in onComponentTap(clientA) },
                     onClientTypeChange: { _, type in changeClientType(clientA, to: type) },
-                    onConnectionDragStart: { comp, start, current in onConnectionDragStart(comp, start, current) }
+                    onConnectionDragStart: { comp, start, current in onConnectionDragStart(comp, start, current) },
+                    onPinClick: onPinClick,
+                    onConnectionDragUpdate: onConnectionDragUpdate
                 )
             }
             
@@ -213,7 +233,9 @@ struct TopologyElementView: View {
                     hoveredConnectionPoint: hoveredConnectionPoint,
                     onClientTap: { _ in onComponentTap(clientB) },
                     onClientTypeChange: { _, type in changeClientType(clientB, to: type) },
-                    onConnectionDragStart: { comp, start, current in onConnectionDragStart(comp, start, current) }
+                    onConnectionDragStart: { comp, start, current in onConnectionDragStart(comp, start, current) },
+                    onPinClick: onPinClick,
+                    onConnectionDragUpdate: onConnectionDragUpdate
                 )
             }
         }
@@ -224,7 +246,8 @@ struct TopologyElementView: View {
             ConnectionView(
                 connection: connection,
                 topology: topologyElement.topology,
-                geometry: geometry
+                geometry: geometry,
+                onDelete: { conn in topologyElement.removeConnection(conn) }
             )
         }
     }
