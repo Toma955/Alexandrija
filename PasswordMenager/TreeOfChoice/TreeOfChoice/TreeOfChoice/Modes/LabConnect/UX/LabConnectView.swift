@@ -112,25 +112,32 @@ struct LabConnectView: View {
     }
     
     private var mainContentView: some View {
-        HStack(spacing: 0) {
-            // Left panel - Controls
-            leftPanel
-                .frame(width: 300)
+        ZStack(alignment: .topTrailing) {
+            HStack(spacing: 0) {
+                // Left panel - Controls
+                leftPanel
+                    .frame(width: 300)
+                
+                Divider()
+                    .background(Color.white.opacity(0.2))
+                
+                // Center - Network Topology Canvas
+                NetworkTopologyCanvasView()
+                    .environmentObject(localization)
+                    .frame(maxWidth: .infinity)
+                
+                Divider()
+                    .background(Color.white.opacity(0.2))
+                
+                // Empty right panel (keeps original layout for topology positioning)
+                rightPanel
+                    .frame(width: 300)
+            }
             
-            Divider()
-                .background(Color.white.opacity(0.2))
-            
-            // Center - Network Topology Canvas
-            NetworkTopologyCanvasView()
-                .environmentObject(localization)
-                .frame(maxWidth: .infinity)
-            
-            Divider()
-                .background(Color.white.opacity(0.2))
-            
-            // Right panel - Status & Logs
-            rightPanel
-                .frame(width: 300)
+            // Action buttons in top right corner (overlay)
+            actionButtonsPanel
+                .padding(.top, -5)
+                .padding(.trailing, 16)
         }
     }
     
@@ -217,64 +224,28 @@ struct LabConnectView: View {
     }
     
     private var rightPanel: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(localization.text("labConnect.status"))
-                .font(.headline)
-                .foregroundColor(.white)
-            
-            // Status indicators
-            VStack(alignment: .leading, spacing: 12) {
-                StatusIndicatorView(
-                    label: localization.text("labConnect.agentStatus"),
-                    value: localization.text("labConnect.idle"),
-                    color: .gray
-                )
-                
-                StatusIndicatorView(
-                    label: localization.text("labConnect.trainingStatus"),
-                    value: localization.text("labConnect.notStarted"),
-                    color: .gray
-                )
-                
-                StatusIndicatorView(
-                    label: localization.text("labConnect.epoch"),
-                    value: "\(currentEpoch)",
-                    color: .white
-                )
-                
-                if isTraining {
-                    StatusIndicatorView(
-                        label: localization.text("labConnect.progress"),
-                        value: "\(Int(trainingProgress * 100))%",
-                        color: accentOrange
-                    )
-                }
-            }
-            
-            Divider()
-                .background(Color.white.opacity(0.2))
-            
-            // Logs
-            VStack(alignment: .leading, spacing: 8) {
-                Text(localization.text("labConnect.logs"))
-                    .font(.headline)
-                    .foregroundColor(.white)
-                
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 4) {
-                        LogEntryView(message: localization.text("labConnect.logReady"), timestamp: Date())
-                    }
-                }
-                .frame(maxHeight: 300)
-                .padding(8)
-                .background(Color.black.opacity(0.3))
-                .cornerRadius(8)
-            }
-            
-            Spacer()
+        // Empty panel - keeps original layout structure for topology positioning
+        Color.clear
+    }
+    
+    private var actionButtonsPanel: some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+            // Row 1: Save As, Upload (Orange)
+            ActionButton(title: "save as", icon: "square.and.arrow.down", color: accentOrange) {}
+            ActionButton(title: "upload", icon: "square.and.arrow.up", color: accentOrange) {}
+
+            // Row 2: Delete Topology, Delete Connections (Red)
+            ActionButton(title: "delete topologi", icon: "trash", color: .red) {}
+            ActionButton(title: "delete conections", icon: "trash.circle", color: .red) {}
+
+            // Row 3: Autoconnect, Test (Green)
+            ActionButton(title: "autocnect", icon: "arrow.triangle.2.circlepath", color: .green) {}
+            ActionButton(title: "Test", icon: "checkmark.circle", color: .green) {}
         }
-        .padding(20)
-        .background(Color.black.opacity(0.4))
+        .padding(10)
+        .background(Color(red: 0x1A/255.0, green: 0x1A/255.0, blue: 0x1A/255.0))
+        .cornerRadius(16)
+        .frame(width: 280)
     }
 }
 
@@ -359,6 +330,32 @@ struct StatusIndicatorView: View {
     }
 }
 
+struct ActionButton: View {
+    let title: String
+    let icon: String
+    let color: Color
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundColor(.white)
+                
+                Text(title)
+                    .font(.caption)
+                    .foregroundColor(.white)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(color)
+            .cornerRadius(8)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 struct LogEntryView: View {
     let message: String
     let timestamp: Date
@@ -376,3 +373,4 @@ struct LogEntryView: View {
         }
     }
 }
+

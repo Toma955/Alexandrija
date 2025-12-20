@@ -23,6 +23,9 @@ class TopologyViewElement: ObservableObject {
     @Published var draggingConnection: (from: NetworkComponent, fromPoint: CGPoint, toPoint: CGPoint)?
     @Published var hoveredConnectionPoint: (component: NetworkComponent, point: ConnectionPoint)?
     @Published var mouseLocation: CGPoint = .zero
+    @Published var isDraggingComponent: Bool = false
+    @Published var isDraggingOverDelete: Bool = false
+    @Published var showDeleteButton: Bool = false
     
     init() {
         // Initialize topology
@@ -70,8 +73,8 @@ class TopologyViewElement: ObservableObject {
             }
             connectingFrom = nil
         } else {
-            // Ako je User ili Area komponenta, otvori User dialog
-            if component.componentType.supportsCustomColor {
+            // Ako je User komponenta, otvori User dialog
+            if component.componentType == .user {
                 selectedUserComponent = component
                 showUserDialog = true
             } else {
@@ -82,6 +85,12 @@ class TopologyViewElement: ObservableObject {
     }
     
     func handleComponentDrag(_ component: NetworkComponent, location: CGPoint, geometry: GeometryProxy) {
+        // Set dragging state
+        if !isDraggingComponent {
+            isDraggingComponent = true
+            showDeleteButton = true // Show button when drag starts
+        }
+        
         // Constrain to zones - Client A and B stay centered in their zones, others in middle
         let constrainedX: CGFloat
         let constrainedY: CGFloat
@@ -105,11 +114,10 @@ class TopologyViewElement: ObservableObject {
             constrainedY = bottomHalfStart + (bottomHalfHeight / 2) - verticalPadding
             constrainedX = (geometry.size.width - padding - zoneWidth) + (zoneWidth / 2) // Center of Client B zone with padding
         } else {
-            // Other components stay in middle area
-            // Snap to grid
-            let snappedLocation = GridSnapHelper.snapToGrid(location)
-            constrainedX = max(middleAreaStart + 45, min(geometry.size.width - padding - zoneWidth - 45, snappedLocation.x))
-            constrainedY = max(45, min(geometry.size.height - 45, snappedLocation.y))
+            // Other components stay in middle area - allow free movement during drag
+            // Don't snap during drag, only update position
+            constrainedX = max(middleAreaStart + 45, min(geometry.size.width - padding - zoneWidth - 45, location.x))
+            constrainedY = max(45, min(geometry.size.height - 45, location.y))
             
             // Calculate relative position for middle area
             let newPosition = ComponentPositionManager.calculateRelativePosition(
@@ -128,6 +136,68 @@ class TopologyViewElement: ObservableObject {
         component.position = CGPoint(x: constrainedX, y: constrainedY)
         component.objectWillChange.send()
         topologyElement.topology.objectWillChange.send()
+    }
+    
+    func handleComponentDragEnd(_ component: NetworkComponent, finalPosition: CGPoint, geometry: GeometryProxy) {
+        // Update dragging state immediately (we're already on main thread from gesture)
+        isDraggingComponent = false
+        isDraggingOverDelete = false
+        showDeleteButton = false // Hide button immediately when drag ends
+        
+        // Check if dropped over delete button
+        let deleteButtonY = geometry.size.height - 60
+        let deleteButtonRadius: CGFloat = 30
+        let deleteButtonCenterX = geometry.size.width / 2
+        
+        let dx = finalPosition.x - deleteButtonCenterX
+        let dy = finalPosition.y - deleteButtonY
+        let distance = sqrt(dx * dx + dy * dy)
+        
+        if distance <= deleteButtonRadius {
+            deleteComponent(component)
+        } else if component.isClientA != true && component.isClientB != true {
+            // Snap to grid on drop (only for non-client components)
+            let snappedLocation = GridSnapHelper.snapToGrid(finalPosition)
+            let zoneWidth: CGFloat = 110
+            let padding: CGFloat = 10
+            let middleAreaStart = padding + zoneWidth
+            
+            let constrainedX = max(middleAreaStart + 45, min(geometry.size.width - padding - zoneWidth - 45, snappedLocation.x))
+            let constrainedY = max(45, min(geometry.size.height - 45, snappedLocation.y))
+            
+            let newPosition = ComponentPositionManager.calculateRelativePosition(
+                absoluteX: constrainedX,
+                absoluteY: constrainedY,
+                geometry: geometry
+            )
+            
+            component.position = newPosition
+            component.objectWillChange.send()
+            topologyElement.topology.objectWillChange.send()
+        }
+    }
+    
+    func handleComponentDragUpdate(_ component: NetworkComponent, location: CGPoint, geometry: GeometryProxy) {
+        // Set dragging state
+        if !isDraggingComponent {
+            isDraggingComponent = true
+            showDeleteButton = true // Show button when drag starts
+        }
+        
+        // Check if dragging over delete button
+        let deleteButtonY = geometry.size.height - 60
+        let deleteButtonRadius: CGFloat = 30
+        let deleteButtonCenterX = geometry.size.width / 2
+        
+        let dx = location.x - deleteButtonCenterX
+        let dy = location.y - deleteButtonY
+        let distance = sqrt(dx * dx + dy * dy)
+        
+        isDraggingOverDelete = distance <= deleteButtonRadius
+    }
+    
+    func deleteComponent(_ component: NetworkComponent) {
+        topologyElement.removeComponent(component)
     }
     
     func handleConnectionDragStart(_ component: NetworkComponent, fromPoint: CGPoint, toPoint: CGPoint) {
@@ -215,6 +285,19 @@ struct TopologyViewElementView: View {
                     )
                 }
             }
+            
+            // Delete button at the bottom center
+            if topologyViewElement.showDeleteButton {
+                VStack {
+                    Spacer()
+                    DeleteButtonView(
+                        isDraggingOver: $topologyViewElement.isDraggingOverDelete,
+                        isDragging: topologyViewElement.isDraggingComponent
+                    )
+                    .position(x: geometry.size.width / 2, y: geometry.size.height - 60)
+                    .animation(.easeInOut(duration: 0.2), value: topologyViewElement.isDraggingOverDelete)
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black.opacity(0.1))
@@ -275,8 +358,12 @@ struct TopologyViewElementView: View {
                 geometry: geometry,
                 hoveredPoint: topologyViewElement.hoveredConnectionPoint?.component.id == component.id ? topologyViewElement.hoveredConnectionPoint?.point : nil,
                 onTap: { topologyViewElement.handleComponentTap($0) },
-                onDrag: { comp, location in topologyViewElement.handleComponentDrag(comp, location: location, geometry: geometry) },
-                onConnectionDragStart: { comp, start, current in topologyViewElement.handleConnectionDragStart(comp, fromPoint: start, toPoint: current) }
+                onDrag: { comp, location in topologyViewElement.handleComponentDragEnd(comp, finalPosition: location, geometry: geometry) },
+                onConnectionDragStart: { comp, start, current in topologyViewElement.handleConnectionDragStart(comp, fromPoint: start, toPoint: current) },
+                onDragUpdate: { comp, location in 
+                    topologyViewElement.handleComponentDragUpdate(comp, location: location, geometry: geometry)
+                },
+                onDelete: { comp in topologyViewElement.deleteComponent(comp) }
             )
         }
     }
