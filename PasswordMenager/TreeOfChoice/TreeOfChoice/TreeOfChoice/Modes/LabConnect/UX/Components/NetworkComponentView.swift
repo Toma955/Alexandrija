@@ -13,16 +13,26 @@ struct NetworkComponentView: View {
     var pinColor: Color? = nil // Optional override color for connection pins
     var hoveredPoint: ConnectionPoint? = nil
     
+    private var isAreaComponent: Bool {
+        component.componentType == .userArea ||
+        component.componentType == .businessArea ||
+        component.componentType == .businessPrivateArea ||
+        component.componentType == .nilterniusArea
+    }
+    
     var body: some View {
         VStack(spacing: 4) {
             Image(systemName: ComponentIconHelper.icon(for: component.componentType))
                 .font(.title3) // Smanjeno sa .title2 na .title3
                 .foregroundColor(iconColorForUser ?? iconColor ?? ComponentColorHelper.color(for: component.componentType))
             
-            Text(component.name)
-                .font(.caption)
-                .foregroundColor(.white)
-                .lineLimit(1)
+            // Natpis samo za komponente koje NISU Area (Area komponente imaju natpis ispod donje strelice)
+            if !isAreaComponent {
+                Text(component.name)
+                    .font(.caption)
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+            }
         }
         .padding(6)
         .frame(width: 70, height: 70) // Smanjeno sa 90x90 na 70x70
@@ -61,12 +71,8 @@ struct NetworkComponentView: View {
                     .frame(width: hoveredPoint == .right ? 14 : 7, height: hoveredPoint == .right ? 14 : 7)
                     .offset(x: 45)
                 
-                // Dodatni krugovi sa strelicama pod 45° za User i Area komponente
-                if component.componentType == .user || 
-                   component.componentType == .userArea ||
-                   component.componentType == .businessArea ||
-                   component.componentType == .businessPrivateArea ||
-                   component.componentType == .nilterniusArea {
+                // Dodatni krugovi sa strelicama pod 45° samo za User komponentu (NE za Area komponente)
+                if component.componentType == .user {
                     // Top-right (gore-desno) - strelica pod 45° gore-desno
                     userButtonWithArrow(
                         angle: 45,
