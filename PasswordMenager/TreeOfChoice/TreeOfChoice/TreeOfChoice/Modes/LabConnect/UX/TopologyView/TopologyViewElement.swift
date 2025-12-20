@@ -248,6 +248,19 @@ class TopologyViewElement: ObservableObject {
     func updateSimulation() {
         topologyElement.updateSimulation()
     }
+    
+    func deleteAllTopology() {
+        topologyElement.deleteAllTopology()
+        // Reset UI state
+        selectedComponent = nil
+        showComponentDetail = false
+        connectingFrom = nil
+        draggingConnection = nil
+        hoveredConnectionPoint = nil
+        isDraggingComponent = false
+        isDraggingOverDelete = false
+        showDeleteButton = false
+    }
 }
 
 /// View wrapper za TopologyViewElement - glavni view za topologiju

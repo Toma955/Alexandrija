@@ -37,6 +37,25 @@ class TopologyElement: ObservableObject {
         topology.addConnection(from: from, to: to)
         topology.objectWillChange.send()
     }
+    
+    func deleteAllTopology() {
+        // Remove all components except Client A and Client B
+        topology.components.removeAll { component in
+            component.isClientA != true && component.isClientB != true
+        }
+        
+        // Remove all connections
+        topology.connections.removeAll()
+        
+        // Remove all agent assignments (except for Client A and B if they have agents)
+        let clientAId = topology.clientA?.id
+        let clientBId = topology.clientB?.id
+        topology.agentAssignments = topology.agentAssignments.filter { componentId, _ in
+            componentId == clientAId || componentId == clientBId
+        }
+        
+        topology.objectWillChange.send()
+    }
 }
 
 /// View wrapper za TopologyElement
@@ -48,6 +67,8 @@ struct TopologyElementView: View {
     let onConnectionDragStart: (NetworkComponent, CGPoint, CGPoint) -> Void
     let onConnectionDragUpdate: (CGPoint) -> Void
     let onConnectionDragEnd: (CGPoint, GeometryProxy) -> Void
+    let onComponentDragUpdate: ((NetworkComponent, CGPoint) -> Void)?
+    let onComponentDelete: ((NetworkComponent) -> Void)?
     @Binding var selectedComponent: NetworkComponent?
     @Binding var showComponentDetail: Bool
     @Binding var connectingFrom: NetworkComponent?
@@ -152,7 +173,9 @@ struct TopologyElementView: View {
                 hoveredPoint: hoveredConnectionPoint?.component.id == component.id ? hoveredConnectionPoint?.point : nil,
                 onTap: { onComponentTap($0) },
                 onDrag: { comp, location in onComponentDrag(comp, location, geometry) },
-                onConnectionDragStart: { comp, start, current in onConnectionDragStart(comp, start, current) }
+                onConnectionDragStart: { comp, start, current in onConnectionDragStart(comp, start, current) },
+                onDragUpdate: onComponentDragUpdate != nil ? { comp, location in onComponentDragUpdate?(comp, location) } : nil,
+                onDelete: onComponentDelete
             )
         }
     }

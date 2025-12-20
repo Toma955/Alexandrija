@@ -12,10 +12,8 @@ struct LabConnectView: View {
     @EnvironmentObject private var localization: LocalizationManager
     
     private let accentOrange = Color(red: 1.0, green: 0.36, blue: 0.0)
-    @State private var selectedTree: DecisionTreeItem?
-    @State private var selectedScript: NetworkScript?
-    @State private var showTreeSelector = false
-    @State private var showScriptSelector = false
+    @StateObject private var sessionStarterElement = SessionStarterElement()
+    @StateObject private var canvasElement = CanvasElement()
     @State private var isTraining = false
     @State private var trainingProgress: Double = 0.0
     @State private var currentEpoch: Int = 0
@@ -34,25 +32,11 @@ struct LabConnectView: View {
             }
         }
         .frame(minWidth: 1000, minHeight: 700)
-        .sheet(isPresented: $showTreeSelector) {
-            TreeSelectorView(selectedTree: $selectedTree) { tree in
-                showTreeSelector = false
-            }
-            .environmentObject(localization)
-        }
-        .sheet(isPresented: $showScriptSelector) {
-            ScriptSelectorView(selectedScript: $selectedScript) { script in
-                showScriptSelector = false
-            }
-            .environmentObject(localization)
-        }
     }
     
     // MARK: - Actions
     
     private func startTraining() {
-        guard selectedTree != nil && selectedScript != nil else { return }
-        
         isTraining = true
         trainingProgress = 0.0
         currentEpoch = 0
@@ -112,17 +96,17 @@ struct LabConnectView: View {
     }
     
     private var mainContentView: some View {
-        ZStack(alignment: .topTrailing) {
+        ZStack {
             HStack(spacing: 0) {
-                // Left panel - Controls
-                leftPanel
+                // Empty left panel (keeps original layout for topology positioning)
+                Color.clear
                     .frame(width: 300)
                 
                 Divider()
                     .background(Color.white.opacity(0.2))
                 
                 // Center - Network Topology Canvas
-                NetworkTopologyCanvasView()
+                NetworkTopologyCanvasView(canvasElement: canvasElement)
                     .environmentObject(localization)
                     .frame(maxWidth: .infinity)
                 
@@ -134,67 +118,33 @@ struct LabConnectView: View {
                     .frame(width: 300)
             }
             
-            // Action buttons in top right corner (overlay)
-            actionButtonsPanel
-                .padding(.top, -5)
-                .padding(.trailing, 5) // 5px od desne bijele linije
+            // Session Starter in top left corner (overlay) - iste dimenzije kao actionButtonsPanel
+            HStack {
+                VStack {
+                    sessionStarterPanel
+                        .padding(.leading, 5) // 5px od lijeve bijele linije
+                    Spacer()
+                }
+                Spacer()
+            }
+            
+            // Action buttons in top right corner (overlay) - ista pozicija i visina kao ComponentPaletteView
+            HStack {
+                Spacer()
+                VStack {
+                    actionButtonsPanel
+                        .padding(.trailing, 5) // 5px od desne bijele linije
+                    Spacer()
+                }
+            }
         }
     }
     
-    private var leftPanel: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(localization.text("labConnect.controls"))
-                .font(.headline)
-                .foregroundColor(.white)
-            
-            // Tree selection
-            VStack(alignment: .leading, spacing: 8) {
-                Text(localization.text("labConnect.selectTree"))
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.7))
-                
-                Button(action: {
-                    showTreeSelector = true
-                }) {
-                    HStack {
-                        Text(selectedTree?.name ?? localization.text("labConnect.noTreeSelected"))
-                            .foregroundColor(selectedTree != nil ? .white : .white.opacity(0.6))
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.white.opacity(0.4))
-                    }
-                    .padding(12)
-                    .background(Color.white.opacity(0.1))
-                    .cornerRadius(8)
-                }
-            }
-            
-            // Network script selection
-            VStack(alignment: .leading, spacing: 8) {
-                Text(localization.text("labConnect.selectScript"))
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.7))
-                
-                Button(action: {
-                    showScriptSelector = true
-                }) {
-                    HStack {
-                        Text(selectedScript?.name ?? localization.text("labConnect.noScriptSelected"))
-                            .foregroundColor(selectedScript != nil ? .white : .white.opacity(0.6))
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.white.opacity(0.4))
-                    }
-                    .padding(12)
-                    .background(Color.white.opacity(0.1))
-                    .cornerRadius(8)
-                }
-            }
-            
-            Spacer()
-        }
-        .padding(20)
-        .background(Color.black.opacity(0.4))
+    private var sessionStarterPanel: some View {
+        SessionStarterElementView(sessionStarterElement: sessionStarterElement)
+            .frame(width: 280, height: 200) // Iste dimenzije kao actionButtonsPanel
+            .background(Color.gray.opacity(0.3))
+            .cornerRadius(16)
     }
     
     private var simulationArea: some View {
@@ -235,7 +185,9 @@ struct LabConnectView: View {
             ActionButton(title: "upload", icon: "square.and.arrow.up", color: accentOrange) {}
 
             // Row 2: Delete Topology, Delete Connections (Red)
-            ActionButton(title: "delete topologi", icon: "trash", color: .red) {}
+            ActionButton(title: "delete topologi", icon: "trash", color: .red) {
+                canvasElement.deleteAllTopology()
+            }
             ActionButton(title: "delete conections", icon: "trash.circle", color: .red) {}
 
             // Row 3: Autoconnect, Test (Green)
@@ -243,9 +195,9 @@ struct LabConnectView: View {
             ActionButton(title: "Test", icon: "checkmark.circle", color: .green) {}
         }
         .padding(10)
+        .frame(width: 280, height: 200) // Ista visina kao ComponentPaletteView: 200px
         .background(Color(red: 0x1A/255.0, green: 0x1A/255.0, blue: 0x1A/255.0))
         .cornerRadius(16)
-        .frame(width: 280, height: 200) // Ista visina kao ComponentPaletteView: 200px
     }
 }
 

@@ -17,6 +17,10 @@ class CanvasElement: ObservableObject {
     init() {
         self.topologyViewElement = TopologyViewElement()
     }
+    
+    func deleteAllTopology() {
+        topologyViewElement.deleteAllTopology()
+    }
 }
 
 /// View wrapper za CanvasElement

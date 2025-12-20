@@ -10,8 +10,8 @@ import SwiftUI
 /// Glavni view za radnu površinu mrežne topologije
 /// Koristi CanvasElement koji koordinira sve elemente prema OOP principima
 struct NetworkTopologyCanvasView: View {
+    @ObservedObject var canvasElement: CanvasElement
     @EnvironmentObject private var localization: LocalizationManager
-    @StateObject private var canvasElement = CanvasElement()
     @State private var showExportImport = false
     
     var body: some View {
