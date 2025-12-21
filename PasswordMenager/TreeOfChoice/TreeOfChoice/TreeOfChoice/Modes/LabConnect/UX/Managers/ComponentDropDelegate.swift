@@ -34,7 +34,17 @@ struct ComponentDropDelegate: DropDelegate {
                     let zoneWidth: CGFloat = 110
                     let padding: CGFloat = 10
                     let middleAreaStart = padding + zoneWidth
+                    
+                    // Provjeri je li Area komponenta
+                    let isAreaComponent = componentType == .userArea ||
+                                         componentType == .businessArea ||
+                                         componentType == .businessPrivateArea ||
+                                         componentType == .nilterniusArea
+                    
+                    // Za Area komponente, drop lokacija je centar (ne lijevi gornji kut)
+                    // Za regularne komponente, drop lokacija je pozicija komponente
                     let relativeX: CGFloat
+                    let relativeY: CGFloat
                     
                     if dropX <= padding + zoneWidth {
                         relativeX = dropX - middleAreaStart
@@ -44,11 +54,20 @@ struct ComponentDropDelegate: DropDelegate {
                         relativeX = dropX - middleAreaStart
                     }
                     
+                    relativeY = dropY
+                    
                     let newComponent = NetworkComponent(
                         componentType: componentType,
-                        position: CGPoint(x: relativeX, y: dropY),
+                        position: CGPoint(x: relativeX, y: relativeY),
                         name: componentType.displayName
                     )
+                    
+                    // Za Area komponente, postavi početnu veličinu ako nije postavljena
+                    if isAreaComponent {
+                        newComponent.areaWidth = 120
+                        newComponent.areaHeight = 120
+                    }
+                    
                     topology.components.append(newComponent)
                     topology.objectWillChange.send()
                 }

@@ -164,24 +164,43 @@ class TopologyViewElement: ObservableObject {
             showDeleteButton = false // Hide button immediately when drag ends
             
             if component.isClientA != true && component.isClientB != true {
-            // Snap to grid on drop (only for non-client components)
-            let snappedLocation = GridSnapHelper.snapToGrid(finalPosition)
-            let zoneWidth: CGFloat = 110
-            let padding: CGFloat = 10
-            let middleAreaStart = padding + zoneWidth
-            
-            let constrainedX = max(middleAreaStart + 45, min(geometry.size.width - padding - zoneWidth - 45, snappedLocation.x))
-            let constrainedY = max(45, min(geometry.size.height - 45, snappedLocation.y))
-            
-            let newPosition = ComponentPositionManager.calculateRelativePosition(
-                absoluteX: constrainedX,
-                absoluteY: constrainedY,
-                geometry: geometry
-            )
-            
-                component.position = newPosition
-                component.objectWillChange.send()
-                topologyElement.topology.objectWillChange.send()
+                // Provjeri je li Area komponenta
+                let isAreaComponent = component.componentType == .userArea ||
+                                     component.componentType == .businessArea ||
+                                     component.componentType == .businessPrivateArea ||
+                                     component.componentType == .nilterniusArea
+                
+                if isAreaComponent {
+                    // Za Area komponente, samo snap-aj na grid BEZ constraint-a
+                    let snappedLocation = GridSnapHelper.snapToGrid(finalPosition)
+                    let newPosition = ComponentPositionManager.calculateRelativePosition(
+                        absoluteX: snappedLocation.x,
+                        absoluteY: snappedLocation.y,
+                        geometry: geometry
+                    )
+                    component.position = newPosition
+                    component.objectWillChange.send()
+                    topologyElement.topology.objectWillChange.send()
+                } else {
+                    // Za regularne komponente, snap-aj na grid s constraint-ima
+                    let snappedLocation = GridSnapHelper.snapToGrid(finalPosition)
+                    let zoneWidth: CGFloat = 110
+                    let padding: CGFloat = 10
+                    let middleAreaStart = padding + zoneWidth
+                    
+                    let constrainedX = max(middleAreaStart + 45, min(geometry.size.width - padding - zoneWidth - 45, snappedLocation.x))
+                    let constrainedY = max(45, min(geometry.size.height - 45, snappedLocation.y))
+                    
+                    let newPosition = ComponentPositionManager.calculateRelativePosition(
+                        absoluteX: constrainedX,
+                        absoluteY: constrainedY,
+                        geometry: geometry
+                    )
+                    
+                    component.position = newPosition
+                    component.objectWillChange.send()
+                    topologyElement.topology.objectWillChange.send()
+                }
             }
         }
     }

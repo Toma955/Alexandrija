@@ -20,6 +20,8 @@ class NetworkComponent: Identifiable, ObservableObject, Codable {
     @Published var customColorRed: Double? // Custom boja RGB komponente za User komponentu
     @Published var customColorGreen: Double?
     @Published var customColorBlue: Double?
+    var areaWidth: CGFloat? // Širina area kvadrata za area komponente
+    var areaHeight: CGFloat? // Visina area kvadrata za area komponente
     
     var customColor: Color? {
         get {
@@ -213,12 +215,14 @@ class NetworkComponent: Identifiable, ObservableObject, Codable {
         self.customColorRed = nil
         self.customColorGreen = nil
         self.customColorBlue = nil
+        self.areaWidth = nil
+        self.areaHeight = nil
     }
     
     // MARK: - Codable
     
     enum CodingKeys: String, CodingKey {
-        case id, componentType, position, name, isClientA, isClientB, customColorRed, customColorGreen, customColorBlue
+        case id, componentType, position, name, isClientA, isClientB, customColorRed, customColorGreen, customColorBlue, areaWidth, areaHeight
     }
     
     required init(from decoder: Decoder) throws {
@@ -233,6 +237,8 @@ class NetworkComponent: Identifiable, ObservableObject, Codable {
         customColorRed = try container.decodeIfPresent(Double.self, forKey: .customColorRed)
         customColorGreen = try container.decodeIfPresent(Double.self, forKey: .customColorGreen)
         customColorBlue = try container.decodeIfPresent(Double.self, forKey: .customColorBlue)
+        areaWidth = try container.decodeIfPresent(CGFloat.self, forKey: .areaWidth)
+        areaHeight = try container.decodeIfPresent(CGFloat.self, forKey: .areaHeight)
     }
     
     func encode(to encoder: Encoder) throws {
@@ -246,6 +252,8 @@ class NetworkComponent: Identifiable, ObservableObject, Codable {
         try container.encodeIfPresent(customColorRed, forKey: .customColorRed)
         try container.encodeIfPresent(customColorGreen, forKey: .customColorGreen)
         try container.encodeIfPresent(customColorBlue, forKey: .customColorBlue)
+        try container.encodeIfPresent(areaWidth, forKey: .areaWidth)
+        try container.encodeIfPresent(areaHeight, forKey: .areaHeight)
     }
 }
 

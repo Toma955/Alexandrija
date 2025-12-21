@@ -28,10 +28,14 @@ struct ComponentView: View {
     @State private var pinClickStarted: Bool = false // Provjera da se pinClick pozove samo jednom
     @State private var isResizingArea: Bool = false
     @State private var resizeStartSize: CGSize = .zero
-    @State private var resizeStartCenter: CGPoint = .zero
+    @State private var resizeStartAbsoluteX: CGFloat = 0 // Fiksna apsolutna X pozicija tijekom resize-a
+    @State private var resizeStartAbsoluteY: CGFloat = 0 // Fiksna apsolutna Y pozicija tijekom resize-a
+    @State private var resizeAnchorPoint: CGPoint? = nil // Apsolutna pozicija anchor pointa (suprotni kut/stranica)
+    @State private var finalAreaCenter: CGPoint? = nil // Finalni centar area kvadrata nakon resize-a
     @State private var resizeCorner: AreaResizeCorner? = nil
     @State private var resizeEdge: AreaResizeEdge? = nil
     @State private var draggingHandlePosition: CGPoint? = nil // Pozicija strelice koja se vuče (prati miš)
+    @State private var dragStartAreaCenter: CGPoint? = nil // Početni areaCenter prije početka drag-a crnog kvadrata
     
     enum AreaResizeCorner {
         case topRight, bottomRight, bottomLeft, topLeft
@@ -65,10 +69,10 @@ struct ComponentView: View {
                 )
                 
                 ZStack {
-                    // Isprekidani kvadrat
+                    // Isprekidani kvadrat - koristi abs() samo za prikaz, ali zadrži originalnu vrijednost u modelu
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(areaColor, style: StrokeStyle(lineWidth: 2, dash: [5, 5]))
-                        .frame(width: areaWidth, height: areaHeight)
+                        .frame(width: abs(areaWidth), height: abs(areaHeight))
                     
                     // Strelice na kutovima
                     if isResizingArea, let corner = resizeCorner, let dragPos = draggingHandlePosition {
@@ -134,16 +138,17 @@ struct ComponentView: View {
                 .allowsHitTesting(true)
             }
             
-            // Komponenta
+            // Komponenta (crni kvadrat) - UVIJEK na fiksnoj poziciji, ne pomiče se tijekom resize-a
             NetworkComponentView(
-            component: component,
-            iconColor: iconColor,
-            hoveredPoint: hoveredPoint
-        )
-        .position(
-                x: absoluteX + (isDragging && !isResizingArea ? dragOffset.width : 0),
-                y: absoluteY + (isDragging && !isResizingArea ? dragOffset.height : 0)
-        )
+                component: component,
+                iconColor: iconColor,
+                hoveredPoint: hoveredPoint
+            )
+            .position(
+                // Koristi fiksnu poziciju - tijekom resize-a koristi početnu poziciju, inače normalnu
+                x: (isResizingArea ? resizeStartAbsoluteX : absoluteX) + (isDragging && !isResizingArea ? dragOffset.width : 0),
+                y: (isResizingArea ? resizeStartAbsoluteY : absoluteY) + (isDragging && !isResizingArea ? dragOffset.height : 0)
+            )
         }
         .gesture(
             // JEDAN gesture s minimumDistance: 0 da hvata i klik i drag
@@ -158,41 +163,58 @@ struct ComponentView: View {
                     let currentLocationGlobal = value.location
                     
                     // Provjeri je li klik na strelicu za resize (corner) - ima prioritet nad edge
-                    if isAreaComponent, let corner = detectAreaResizeCorner(at: startLocationGlobal, componentCenter: componentCenter, areaWidth: component.areaWidth ?? 120, areaHeight: component.areaHeight ?? 120) {
+                    // ILI ako je već resize aktivan, nastavi s resize-om
+                    let detectedCorner = detectAreaResizeCorner(at: startLocationGlobal, componentCenter: componentCenter, areaWidth: component.areaWidth ?? 120, areaHeight: component.areaHeight ?? 120)
+                    let corner = detectedCorner ?? (isResizingArea ? resizeCorner : nil)
+                    if isAreaComponent, let corner = corner {
                         if !isResizingArea || resizeCorner != corner {
                             isResizingArea = true
                             resizeCorner = corner
                             resizeEdge = nil
                             resizeStartSize = CGSize(width: component.areaWidth ?? 120, height: component.areaHeight ?? 120)
-                            resizeStartCenter = componentCenter
-                            draggingHandlePosition = currentLocationGlobal // Strelice prate miš
+                            resizeStartAbsoluteX = absoluteX
+                            resizeStartAbsoluteY = absoluteY
+                            
+                            // Spremi apsolutnu poziciju anchor pointa (suprotni kut) - SAMO JEDNOM
+                            let areaWidth = component.areaWidth ?? 120
+                            let areaHeight = component.areaHeight ?? 120
+                            switch corner {
+                            case .topRight:
+                                resizeAnchorPoint = CGPoint(x: componentCenter.x - areaWidth / 2, y: componentCenter.y + areaHeight / 2)
+                            case .bottomRight:
+                                resizeAnchorPoint = CGPoint(x: componentCenter.x - areaWidth / 2, y: componentCenter.y - areaHeight / 2)
+                            case .bottomLeft:
+                                resizeAnchorPoint = CGPoint(x: componentCenter.x + areaWidth / 2, y: componentCenter.y - areaHeight / 2)
+                            case .topLeft:
+                                resizeAnchorPoint = CGPoint(x: componentCenter.x + areaWidth / 2, y: componentCenter.y + areaHeight / 2)
+                            }
+                            
+                            draggingHandlePosition = currentLocationGlobal
                         }
                         
                         // Ažuriraj poziciju strelice da prati miš
                         draggingHandlePosition = currentLocationGlobal
                         
-                        let dragDelta = CGSize(width: currentLocationGlobal.x - startLocationGlobal.x, height: currentLocationGlobal.y - startLocationGlobal.y)
+                        // Koristi delta od startLocation (stabilno, bez inkrementalnog)
+                        let deltaX = currentLocationGlobal.x - startLocationGlobal.x
+                        let deltaY = currentLocationGlobal.y - startLocationGlobal.y
+                        
                         var newWidth = resizeStartSize.width
                         var newHeight = resizeStartSize.height
-                        let minSize: CGFloat = 100
                         
                         switch corner {
                         case .topRight:
-                            // Top i right se pomiču, bottom-left kut ostaje na istom mjestu
-                            newWidth = max(minSize, resizeStartSize.width + dragDelta.width)
-                            newHeight = max(minSize, resizeStartSize.height - dragDelta.height)
+                            newWidth += deltaX
+                            newHeight -= deltaY
                         case .bottomRight:
-                            // Bottom i right se pomiču, top-left kut ostaje na istom mjestu
-                            newWidth = max(minSize, resizeStartSize.width + dragDelta.width)
-                            newHeight = max(minSize, resizeStartSize.height + dragDelta.height)
+                            newWidth += deltaX
+                            newHeight += deltaY
                         case .bottomLeft:
-                            // Bottom i left se pomiču, top-right kut ostaje na istom mjestu
-                            newWidth = max(minSize, resizeStartSize.width - dragDelta.width)
-                            newHeight = max(minSize, resizeStartSize.height + dragDelta.height)
+                            newWidth -= deltaX
+                            newHeight += deltaY
                         case .topLeft:
-                            // Top i left se pomiču, bottom-right kut ostaje na istom mjestu
-                            newWidth = max(minSize, resizeStartSize.width - dragDelta.width)
-                            newHeight = max(minSize, resizeStartSize.height - dragDelta.height)
+                            newWidth -= deltaX
+                            newHeight -= deltaY
                         }
                         
                         component.areaWidth = newWidth
@@ -205,31 +227,45 @@ struct ComponentView: View {
                             resizeEdge = edge
                             resizeCorner = nil
                             resizeStartSize = CGSize(width: component.areaWidth ?? 120, height: component.areaHeight ?? 120)
-                            resizeStartCenter = componentCenter
-                            draggingHandlePosition = currentLocationGlobal // Strelice prate miš
+                            resizeStartAbsoluteX = absoluteX
+                            resizeStartAbsoluteY = absoluteY
+                            
+                            // Spremi apsolutnu poziciju anchor pointa (suprotna stranica) - SAMO JEDNOM
+                            let areaWidth = component.areaWidth ?? 120
+                            let areaHeight = component.areaHeight ?? 120
+                            switch edge {
+                            case .top:
+                                resizeAnchorPoint = CGPoint(x: componentCenter.x, y: componentCenter.y + areaHeight / 2)
+                            case .right:
+                                resizeAnchorPoint = CGPoint(x: componentCenter.x - areaWidth / 2, y: componentCenter.y)
+                            case .bottom:
+                                resizeAnchorPoint = CGPoint(x: componentCenter.x, y: componentCenter.y - areaHeight / 2)
+                            case .left:
+                                resizeAnchorPoint = CGPoint(x: componentCenter.x + areaWidth / 2, y: componentCenter.y)
+                            }
+                            
+                            draggingHandlePosition = currentLocationGlobal
                         }
                         
                         // Ažuriraj poziciju strelice da prati miš
                         draggingHandlePosition = currentLocationGlobal
                         
-                        let dragDelta = CGSize(width: currentLocationGlobal.x - startLocationGlobal.x, height: currentLocationGlobal.y - startLocationGlobal.y)
+                        // Koristi delta od startLocation (stabilno, bez inkrementalnog)
+                        let deltaX = currentLocationGlobal.x - startLocationGlobal.x
+                        let deltaY = currentLocationGlobal.y - startLocationGlobal.y
+                        
                         var newWidth = resizeStartSize.width
                         var newHeight = resizeStartSize.height
-                        let minSize: CGFloat = 100
                         
                         switch edge {
                         case .top:
-                            // Top se pomiče, bottom ostaje na istom mjestu
-                            newHeight = max(minSize, resizeStartSize.height - dragDelta.height)
-                        case .right:
-                            // Right se pomiče, left ostaje na istom mjestu
-                            newWidth = max(minSize, resizeStartSize.width + dragDelta.width)
+                            newHeight -= deltaY
                         case .bottom:
-                            // Bottom se pomiče, top ostaje na istom mjestu
-                            newHeight = max(minSize, resizeStartSize.height + dragDelta.height)
+                            newHeight += deltaY
                         case .left:
-                            // Left se pomiče, right ostaje na istom mjestu
-                            newWidth = max(minSize, resizeStartSize.width - dragDelta.width)
+                            newWidth -= deltaX
+                        case .right:
+                            newWidth += deltaX
                         }
                         
                         component.areaWidth = newWidth
@@ -264,12 +300,38 @@ struct ComponentView: View {
                         // Normal component drag - track offset
                         if !isDragging {
                             isDragging = true
-                                dragStartPosition = CGPoint(x: absoluteX, y: absoluteY)
+                            dragStartPosition = CGPoint(x: absoluteX, y: absoluteY)
+                            // Za Area komponente, spremi trenutni areaCenter prije početka drag-a
+                            if isAreaComponent {
+                                let currentAreaCenter = calculateAreaCenter(
+                                    absoluteX: absoluteX,
+                                    absoluteY: absoluteY,
+                                    areaWidth: component.areaWidth ?? 120,
+                                    areaHeight: component.areaHeight ?? 120
+                                )
+                                // Postavi finalAreaCenter i dragStartAreaCenter na trenutni areaCenter
+                                finalAreaCenter = currentAreaCenter
+                                dragStartAreaCenter = currentAreaCenter
+                            } else {
+                                // Za regularne komponente, resetiraj finalAreaCenter
+                                finalAreaCenter = nil
+                                dragStartAreaCenter = nil
+                            }
                         }
                         dragOffset = CGSize(
                             width: value.location.x - value.startLocation.x,
                             height: value.location.y - value.startLocation.y
                         )
+                        
+                        // Za Area komponente, ažuriraj finalAreaCenter tijekom drag-a
+                        // finalAreaCenter se pomiče s crnim kvadratom (relativno na početni areaCenter)
+                        if isAreaComponent, let startAreaCenter = dragStartAreaCenter {
+                            // Ažuriraj finalAreaCenter za drag offset (pomakni s crnim kvadratom)
+                            finalAreaCenter = CGPoint(
+                                x: startAreaCenter.x + dragOffset.width,
+                                y: startAreaCenter.y + dragOffset.height
+                            )
+                        }
                         
                         // Pass current drag location for delete button detection
                         let globalLocation = CGPoint(
@@ -281,11 +343,43 @@ struct ComponentView: View {
                     }
                 }
                 .onEnded { value in
-                    // Ako je bio area resize, resetiraj state
+                    // Ako je bio area resize, spremi finalni areaCenter ali NE resetiraj state - omogući kontinuirani resize
                     if isResizingArea {
-                        isResizingArea = false
-                        resizeCorner = nil
-                        resizeEdge = nil
+                        // Izračunaj finalni areaCenter na temelju anchor pointa i finalne veličine
+                        let finalWidth = component.areaWidth ?? 120
+                        let finalHeight = component.areaHeight ?? 120
+                        
+                        if let anchorPoint = resizeAnchorPoint {
+                            if let corner = resizeCorner {
+                                switch corner {
+                                case .topRight:
+                                    finalAreaCenter = CGPoint(x: anchorPoint.x + finalWidth / 2, y: anchorPoint.y - finalHeight / 2)
+                                case .bottomRight:
+                                    finalAreaCenter = CGPoint(x: anchorPoint.x + finalWidth / 2, y: anchorPoint.y + finalHeight / 2)
+                                case .bottomLeft:
+                                    finalAreaCenter = CGPoint(x: anchorPoint.x - finalWidth / 2, y: anchorPoint.y + finalHeight / 2)
+                                case .topLeft:
+                                    finalAreaCenter = CGPoint(x: anchorPoint.x - finalWidth / 2, y: anchorPoint.y - finalHeight / 2)
+                                }
+                            } else if let edge = resizeEdge {
+                                switch edge {
+                                case .top:
+                                    finalAreaCenter = CGPoint(x: anchorPoint.x, y: anchorPoint.y - finalHeight / 2)
+                                case .right:
+                                    finalAreaCenter = CGPoint(x: anchorPoint.x + finalWidth / 2, y: anchorPoint.y)
+                                case .bottom:
+                                    finalAreaCenter = CGPoint(x: anchorPoint.x, y: anchorPoint.y + finalHeight / 2)
+                                case .left:
+                                    finalAreaCenter = CGPoint(x: anchorPoint.x - finalWidth / 2, y: anchorPoint.y)
+                                }
+                            }
+                        }
+                        
+                        // Ažuriraj resizeStartSize na trenutne vrijednosti za sljedeći resize
+                        resizeStartSize = CGSize(width: component.areaWidth ?? 120, height: component.areaHeight ?? 120)
+                        
+                        // NE resetiraj isResizingArea, resizeCorner, resizeEdge, resizeAnchorPoint - omogući kontinuirani resize
+                        // Resetiraj draggingHandlePosition za sljedeći drag
                         draggingHandlePosition = nil
                     }
                     
@@ -313,9 +407,21 @@ struct ComponentView: View {
                         if distance <= deleteButtonRadius {
                             onDelete?(component)
                         } else {
-                            // Final position update - bez grid snap za Area komponente (smooth drag)
+                            // Final position update
                             if isAreaComponent {
-                                onDrag(component, finalDragLocation)
+                                // Za Area komponente, finalAreaCenter je već ažuriran tijekom drag-a
+                                // Samo snap-aj na grid
+                                if let currentFinalAreaCenter = finalAreaCenter {
+                                    finalAreaCenter = GridSnapHelper.snapToGrid(currentFinalAreaCenter)
+                                } else {
+                                    // Ako nema finalAreaCenter (ne bi trebalo biti), koristi finalDragLocation
+                                    finalAreaCenter = GridSnapHelper.snapToGrid(finalDragLocation)
+                                }
+                                
+                                // KLJUČNO: Pozovi onDrag s pozicijom CRNOG KVADRATA (finalDragLocation), NE s area centrom!
+                                // finalAreaCenter se koristi samo za iscrtkani kvadrat, ne za crni kvadrat
+                                let snappedPosition = GridSnapHelper.snapToGrid(finalDragLocation)
+                                onDrag(component, snappedPosition)
                             } else {
                                 // Grid snap samo za regularne komponente
                                 let snappedPosition = GridSnapHelper.snapToGrid(finalDragLocation)
@@ -392,7 +498,50 @@ struct ComponentView: View {
     }
     
     private func calculateAreaCenter(absoluteX: CGFloat, absoluteY: CGFloat, areaWidth: CGFloat, areaHeight: CGFloat) -> CGPoint {
-        // Jednostavno koristi poziciju komponente - bez centriranja
+        // Ako postoji finalni areaCenter (nakon resize-a), koristi ga
+        if let finalCenter = finalAreaCenter {
+            return finalCenter
+        }
+        
+        // Ako je resize aktivan, računaj centar tako da anchor point ostane fiksno
+        if isResizingArea, let anchorPoint = resizeAnchorPoint {
+            if let corner = resizeCorner {
+                // Izračunaj novi centar na temelju anchor pointa (suprotni kut)
+                switch corner {
+                case .topRight:
+                    // Bottom-left kut je anchor
+                    return CGPoint(x: anchorPoint.x + areaWidth / 2, y: anchorPoint.y - areaHeight / 2)
+                case .bottomRight:
+                    // Top-left kut je anchor
+                    return CGPoint(x: anchorPoint.x + areaWidth / 2, y: anchorPoint.y + areaHeight / 2)
+                case .bottomLeft:
+                    // Top-right kut je anchor
+                    return CGPoint(x: anchorPoint.x - areaWidth / 2, y: anchorPoint.y + areaHeight / 2)
+                case .topLeft:
+                    // Bottom-right kut je anchor
+                    return CGPoint(x: anchorPoint.x - areaWidth / 2, y: anchorPoint.y - areaHeight / 2)
+                }
+            } else if let edge = resizeEdge {
+                // Izračunaj novi centar na temelju anchor pointa (suprotna stranica)
+                switch edge {
+                case .top:
+                    // Bottom edge je anchor
+                    return CGPoint(x: anchorPoint.x, y: anchorPoint.y - areaHeight / 2)
+                case .right:
+                    // Left edge je anchor
+                    return CGPoint(x: anchorPoint.x + areaWidth / 2, y: anchorPoint.y)
+                case .bottom:
+                    // Top edge je anchor
+                    return CGPoint(x: anchorPoint.x, y: anchorPoint.y + areaHeight / 2)
+                case .left:
+                    // Right edge je anchor
+                    return CGPoint(x: anchorPoint.x - areaWidth / 2, y: anchorPoint.y)
+                }
+            }
+        }
+        
+        // Normalno - koristi poziciju komponente (NE centriraj automatski)
+        // absoluteX i absoluteY su već pozicija komponente, koristi ih direktno
         let areaCenterX = absoluteX + (isDragging && !isResizingArea ? dragOffset.width : 0)
         let areaCenterY = absoluteY + (isDragging && !isResizingArea ? dragOffset.height : 0)
         
@@ -514,7 +663,7 @@ struct ComponentView: View {
     }
     
     private func detectAreaResizeEdge(at location: CGPoint, componentCenter: CGPoint, areaWidth: CGFloat, areaHeight: CGFloat) -> AreaResizeEdge? {
-        let handleRadius: CGFloat = 12
+        let handleRadius: CGFloat = 20 // Povećano za lakše klikanje
         let handleOffset: CGFloat = 8 // Offset za strelicu izvan kvadrata
         let edges: [(CGSize, AreaResizeEdge)] = [
             (CGSize(width: 0, height: -areaHeight / 2 - handleOffset), .top),
@@ -538,7 +687,7 @@ struct ComponentView: View {
     }
     
     private func detectAreaResizeCorner(at location: CGPoint, componentCenter: CGPoint, areaWidth: CGFloat, areaHeight: CGFloat) -> AreaResizeCorner? {
-        let handleRadius: CGFloat = 12
+        let handleRadius: CGFloat = 20 // Povećano za lakše klikanje
         let handleOffset: CGFloat = 8 // Offset za strelicu izvan kvadrata
         let corners: [(CGSize, AreaResizeCorner)] = [
             (CGSize(width: areaWidth / 2 + handleOffset, height: -areaHeight / 2 - handleOffset), .topRight),
