@@ -14,6 +14,7 @@ struct LabConnectView: View {
     private let accentOrange = Color(red: 1.0, green: 0.36, blue: 0.0)
     @StateObject private var sessionStarterElement = SessionStarterElement()
     @StateObject private var canvasElement = CanvasElement()
+    @StateObject private var bottomControlPanel = BottomControlPanelElement()
     @State private var isTraining = false
     @State private var trainingProgress: Double = 0.0
     @State private var currentEpoch: Int = 0
@@ -169,18 +170,25 @@ struct LabConnectView: View {
                 let squareHeight = bottomEdge - topEdge
                 let squareY = topEdge + (squareHeight / 2) // Centar kvadrata
                 
-                return Rectangle()
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(width: squareWidth, height: squareHeight)
-                    .cornerRadius(12)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.gray, lineWidth: 2)
-                    )
-                    .position(
-                        x: squareX,
-                        y: squareY
-                    )
+                return ZStack {
+                    // Background
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(width: squareWidth, height: squareHeight)
+                        .cornerRadius(12)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.gray, lineWidth: 2)
+                        )
+                    
+                    // Bottom Control Panel Content
+                    BottomControlPanelView(bottomControlPanel: bottomControlPanel)
+                        .frame(width: squareWidth - 40, height: squareHeight - 40)
+                }
+                .position(
+                    x: squareX,
+                    y: squareY
+                )
             }
             
         }
