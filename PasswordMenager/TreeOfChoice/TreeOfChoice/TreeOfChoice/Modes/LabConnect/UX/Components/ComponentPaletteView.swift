@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ComponentPaletteView: View {
     @Binding var draggedComponent: NetworkComponent?
+    var isTestMode: Bool = false // Test mode - onemogućava drag komponenti
     
     // Sve regularne komponente (bez Area komponenti, DNS i DHCP)
     private var regularComponents: [NetworkComponent.ComponentType] {
@@ -104,7 +105,12 @@ struct ComponentPaletteView: View {
         if isServer {
             ComponentPaletteItem(componentType: componentType)
                 .frame(width: 110, height: 80) // Vraćeno na originalnu visinu
+                .opacity(isTestMode ? 0.5 : 1.0) // Smanji opacity u test modu
                 .onDrag {
+                    // Ako je test mode, ne dozvoli drag
+                    guard !isTestMode else {
+                        return NSItemProvider()
+                    }
                     draggedComponent = NetworkComponent(
                         componentType: componentType,
                         position: .zero,
@@ -116,7 +122,12 @@ struct ComponentPaletteView: View {
             ComponentPaletteItem(componentType: componentType)
                 .frame(height: 80) // Vraćeno na originalnu visinu
                 .frame(maxWidth: .infinity)
+                .opacity(isTestMode ? 0.5 : 1.0) // Smanji opacity u test modu
                 .onDrag {
+                    // Ako je test mode, ne dozvoli drag
+                    guard !isTestMode else {
+                        return NSItemProvider()
+                    }
                     draggedComponent = NetworkComponent(
                         componentType: componentType,
                         position: .zero,

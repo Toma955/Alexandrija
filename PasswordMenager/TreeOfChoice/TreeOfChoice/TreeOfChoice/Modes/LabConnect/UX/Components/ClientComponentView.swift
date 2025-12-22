@@ -34,7 +34,7 @@ struct ClientComponentView: View {
         
         let componentCenter = CGPoint(x: x, y: y)
         
-        return NetworkComponentView(component: component, iconColor: iconColor, hoveredPoint: hoveredPoint)
+        return NetworkComponentView(component: component, topology: topology, iconColor: iconColor, hoveredPoint: hoveredPoint)
             .frame(width: 90, height: 90)
             .contentShape(Rectangle())
             .position(x: x, y: y)

@@ -13,6 +13,7 @@ struct ComponentView: View {
     @ObservedObject var simulation: NetworkSimulation
     let geometry: GeometryProxy
     let hoveredPoint: ConnectionPoint?
+    let isTestMode: Bool
     let onTap: (NetworkComponent) -> Void
     let onDrag: (NetworkComponent, CGPoint) -> Void
     let onConnectionDragStart: (NetworkComponent, CGPoint, CGPoint) -> Void
@@ -138,15 +139,17 @@ struct ComponentView: View {
                 .allowsHitTesting(true)
             }
             
-            // Komponenta (crni kvadrat) - UVIJEK na fiksnoj poziciji, ne pomiče se tijekom resize-a
+            // Komponenta (crni kvadrat ili krug u test modu) - UVIJEK na fiksnoj poziciji, ne pomiče se tijekom resize-a
             NetworkComponentView(
                 component: component,
+                topology: topology,
                 iconColor: iconColor,
                 hoveredPoint: hoveredPoint,
                 onIconTap: {
                     // Klik na ikonu - pozovi onTap handler
                     onTap(component)
-                }
+                },
+                isTestMode: isTestMode
             )
             .position(
                 // Koristi fiksnu poziciju - tijekom resize-a koristi početnu poziciju, inače normalnu
@@ -156,8 +159,11 @@ struct ComponentView: View {
         }
         .gesture(
             // JEDAN gesture s minimumDistance: 0 da hvata i klik i drag
+            // Onemogući drag u test modu
             DragGesture(minimumDistance: 0)
                 .onChanged { value in
+                    // Ako je test mode, ne dozvoli drag
+                    guard !isTestMode else { return }
                     let absoluteY = calculateAbsoluteY()
                     let componentCenter = CGPoint(x: absoluteX, y: absoluteY)
                     
@@ -276,7 +282,8 @@ struct ComponentView: View {
                         component.areaHeight = newHeight
                     }
                     // Provjeri je li klik na connection point (koristi ConnectionPointDetector s globalnim koordinatama)
-                    else if let connectionPoint = ConnectionPointDetector.detect(at: startLocationGlobal, componentCenter: componentCenter) {
+                    // Onemogući pinove u test modu
+                    else if !isTestMode, let connectionPoint = ConnectionPointDetector.detect(at: startLocationGlobal, componentCenter: componentCenter) {
                         let pinPosition = ConnectionPointDetector.position(for: connectionPoint, componentCenter: componentCenter)
                         
                         // KLJUČNO: Kada se klikne na pin, pozovi onPinClick (samo jednom)
@@ -347,6 +354,8 @@ struct ComponentView: View {
                     }
                 }
                 .onEnded { value in
+                    // Ako je test mode, ne dozvoli drag
+                    guard !isTestMode else { return }
                     // Ako je bio area resize, spremi finalni areaCenter ali NE resetiraj state - omogući kontinuirani resize
                     if isResizingArea {
                         // Izračunaj finalni areaCenter na temelju anchor pointa i finalne veličine

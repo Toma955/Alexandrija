@@ -14,7 +14,7 @@ enum ConnectionPoint: String, Codable {
 struct ConnectionPointDetector {
     static func detect(at location: CGPoint, componentCenter: CGPoint) -> ConnectionPoint? {
         let connectionPointDistance: CGFloat = 45
-        let hitRadius: CGFloat = 25 // Povećano sa 20 na 25 za bolju detekciju svih pinova
+        let hitRadius: CGFloat = 20 // Radius za prikaz pinova - miš mora biti jako blizu (smanjeno sa 25 na 20)
         
         // Izračunaj pozicije svakog connection pointa
         let topPoint = CGPoint(x: componentCenter.x, y: componentCenter.y - connectionPointDistance)

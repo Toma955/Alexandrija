@@ -16,6 +16,7 @@ struct TopologyCanvasView: View {
     @Binding var draggingConnection: (from: NetworkComponent, fromPoint: CGPoint, toPoint: CGPoint)?
     @Binding var hoveredConnectionPoint: (component: NetworkComponent, point: ConnectionPoint)?
     @Binding var mouseLocation: CGPoint
+    var isTestMode: Bool = false // Test mode - fiksira elemente i mijenja izgled
     
     let onComponentTap: (NetworkComponent) -> Void
     let onComponentDrag: (NetworkComponent, CGPoint, GeometryProxy) -> Void
@@ -47,7 +48,8 @@ struct TopologyCanvasView: View {
                     ConnectionLine(
                         from: dragging.fromPoint,
                         to: dragging.toPoint,
-                        type: .wired
+                        type: .wired,
+                        isTestMode: isTestMode
                     )
                 }
                 
@@ -90,7 +92,8 @@ struct TopologyCanvasView: View {
             .background(Color.black.opacity(0.1))
             .onDrop(of: [.text], delegate: ComponentDropDelegate(
                 topology: topology,
-                geometry: geometry
+                geometry: geometry,
+                isTestMode: isTestMode
             ))
             .simultaneousGesture(
                 // Global gesture to update dragging connection (only when dragging connection, not component)
@@ -145,6 +148,7 @@ struct TopologyCanvasView: View {
                 simulation: simulation,
                 geometry: geometry,
                 hoveredPoint: hoveredConnectionPoint?.component.id == component.id ? hoveredConnectionPoint?.point : nil,
+                isTestMode: isTestMode,
                 onTap: { onComponentTap($0) },
                 onDrag: { comp, location in onComponentDrag(comp, location, geometry) },
                 onConnectionDragStart: { comp, start, current in onConnectionDragStart(comp, start, current) },
@@ -201,6 +205,7 @@ struct TopologyCanvasView: View {
                 connection: connection,
                 topology: topology,
                 geometry: geometry,
+                isTestMode: isTestMode,
                 onDelete: onConnectionDelete
             )
         }

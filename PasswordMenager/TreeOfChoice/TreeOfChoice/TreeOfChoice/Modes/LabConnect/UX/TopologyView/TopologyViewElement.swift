@@ -349,7 +349,9 @@ class TopologyViewElement: ObservableObject {
 /// View wrapper za TopologyViewElement - glavni view za topologiju
 struct TopologyViewElementView: View {
     @ObservedObject var topologyViewElement: TopologyViewElement
+    @EnvironmentObject private var localization: LocalizationManager
     let geometry: GeometryProxy
+    var isTestMode: Bool = false // Test mode - fiksira elemente i mijenja izgled
     
     // Helper za provjeru je li novi pin blizu drugog pina
     private func isNearTargetPin(_ location: CGPoint) -> (component: NetworkComponent, pinPosition: CGPoint)? {
@@ -383,23 +385,25 @@ struct TopologyViewElementView: View {
             // Connections layer
             connectionsLayer
             
-            // Dragging connection line (temporary while dragging)
-            if let dragging = topologyViewElement.draggingConnection {
-                // Provjeri je li novi pin blizu drugog pina
-                if let target = isNearTargetPin(dragging.toPoint) {
-                    // Spoji liniju na drugi pin
-                    ConnectionLine(
-                        from: dragging.fromPoint,
-                        to: target.pinPosition,
-                        type: .wired
-                    )
-                } else {
-                    // Siva vidljiva linija od originalnog pina do kruga koji prati miš
-                    ConnectionLine(
-                        from: dragging.fromPoint,
-                        to: dragging.toPoint,
-                        type: .wired
-                    )
+                    // Dragging connection line (temporary while dragging)
+                    if let dragging = topologyViewElement.draggingConnection {
+                        // Provjeri je li novi pin blizu drugog pina
+                        if let target = isNearTargetPin(dragging.toPoint) {
+                            // Spoji liniju na drugi pin
+                            ConnectionLine(
+                                from: dragging.fromPoint,
+                                to: target.pinPosition,
+                                type: .wired,
+                                isTestMode: isTestMode
+                            )
+                        } else {
+                            // Siva vidljiva linija od originalnog pina do kruga koji prati miš
+                            ConnectionLine(
+                                from: dragging.fromPoint,
+                                to: dragging.toPoint,
+                                type: .wired,
+                                isTestMode: isTestMode
+                            )
                     
                     // Novi krug koji prati miš - stvoren na poziciji pina, sada prati miš
                     Circle()
@@ -450,7 +454,8 @@ struct TopologyViewElementView: View {
         .background(Color.black.opacity(0.1))
         .onDrop(of: [.text], delegate: ComponentDropDelegate(
             topology: topologyViewElement.topologyElement.topology,
-            geometry: geometry
+            geometry: geometry,
+            isTestMode: isTestMode
         ))
         .background(
             // Invisible background za hvatanje mouse events
@@ -511,8 +516,12 @@ struct TopologyViewElementView: View {
         }
         .simultaneousGesture(
             // Tap gesture za završetak konekcije klikom na pin
+            // Onemogući u test modu
             DragGesture(minimumDistance: 0)
                 .onEnded { value in
+                    // Ako je test mode, ne dozvoli završetak konekcije
+                    guard !isTestMode else { return }
+                    
                     // Provjeri je li klik na pin drugog komponenta dok se vuče konekcija
                     if let dragging = topologyViewElement.draggingConnection {
                         if let targetComponent = ComponentPositionManager.findComponent(
@@ -550,12 +559,13 @@ struct TopologyViewElementView: View {
                 simulation: topologyViewElement.topologyElement.simulation,
                 geometry: geometry,
                 hoveredPoint: topologyViewElement.hoveredConnectionPoint?.component.id == component.id ? topologyViewElement.hoveredConnectionPoint?.point : nil,
+                isTestMode: isTestMode,
                 onTap: { topologyViewElement.handleComponentTap($0) },
                 onDrag: { comp, location in topologyViewElement.handleComponentDragEnd(comp, finalPosition: location, geometry: geometry) },
                 onConnectionDragStart: { comp, start, current in topologyViewElement.handleConnectionDragStart(comp, fromPoint: start, toPoint: current, geometry: geometry) },
                 onConnectionDragUpdate: { location in topologyViewElement.handleConnectionDragUpdate(location, geometry: geometry) },
                 onPinClick: { comp, point, position in topologyViewElement.handlePinClick(comp, connectionPoint: point, pinPosition: position) },
-                onDragUpdate: { comp, location in 
+                onDragUpdate: { comp, location in
                     topologyViewElement.handleComponentDragUpdate(comp, location: location, geometry: geometry)
                 },
                 onDelete: { comp in topologyViewElement.deleteComponent(comp) }
@@ -569,6 +579,7 @@ struct TopologyViewElementView: View {
                 connection: connection,
                 topology: topologyViewElement.topologyElement.topology,
                 geometry: geometry,
+                isTestMode: isTestMode,
                 onDelete: { conn in topologyViewElement.topologyElement.removeConnection(conn) }
             )
         }
@@ -611,6 +622,12 @@ struct TopologyViewElementView: View {
     // MARK: - Helpers
     
     private func updateHoveredConnectionPoint(at location: CGPoint, geometry: GeometryProxy) {
+        // Onemogući pinove u test modu
+        guard !isTestMode else {
+            topologyViewElement.hoveredConnectionPoint = nil
+            return
+        }
+        
         // Check all components including Client A and Client B
         for component in topologyViewElement.topologyElement.topology.components {
             let componentCenter = ComponentPositionManager.getAbsolutePosition(for: component, in: geometry)

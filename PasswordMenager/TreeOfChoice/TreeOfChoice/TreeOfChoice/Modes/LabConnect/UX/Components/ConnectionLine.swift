@@ -11,6 +11,7 @@ struct ConnectionLine: View {
     let from: CGPoint
     let to: CGPoint
     let type: NetworkConnection.ConnectionType
+    var isTestMode: Bool = false // Test mode - narančasta boja
     
     var body: some View {
         // Obična linija
@@ -21,8 +22,11 @@ struct ConnectionLine: View {
         .stroke(lineColor, style: strokeStyle)
     }
     
-    // All connections are gray initially
+    // All connections are gray initially, narančasta u test modu
     private var lineColor: Color {
+        if isTestMode {
+            return Color(red: 1.0, green: 0.36, blue: 0.0) // Narančasta boja
+        }
         return Color.gray
     }
     

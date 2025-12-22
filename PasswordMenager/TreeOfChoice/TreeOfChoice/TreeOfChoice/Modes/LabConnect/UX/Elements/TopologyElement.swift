@@ -75,6 +75,7 @@ class TopologyElement: ObservableObject {
 struct TopologyElementView: View {
     @ObservedObject var topologyElement: TopologyElement
     let geometry: GeometryProxy
+    var isTestMode: Bool = false // Test mode - fiksira elemente i mijenja izgled
     let onComponentTap: (NetworkComponent) -> Void
     let onComponentDrag: (NetworkComponent, CGPoint, GeometryProxy) -> Void
     let onConnectionDragStart: (NetworkComponent, CGPoint, CGPoint) -> Void
@@ -114,7 +115,8 @@ struct TopologyElementView: View {
                 ConnectionLine(
                     from: dragging.fromPoint,
                     to: dragging.toPoint,
-                    type: .wired
+                    type: .wired,
+                    isTestMode: isTestMode
                 )
             }
             
@@ -133,7 +135,8 @@ struct TopologyElementView: View {
         .background(Color.black.opacity(0.1))
         .onDrop(of: [.text], delegate: ComponentDropDelegate(
             topology: topologyElement.topology,
-            geometry: geometry
+            geometry: geometry,
+            isTestMode: isTestMode
         ))
         .simultaneousGesture(
             // Global gesture to update dragging connection
@@ -187,6 +190,7 @@ struct TopologyElementView: View {
                 simulation: topologyElement.simulation,
                 geometry: geometry,
                 hoveredPoint: hoveredConnectionPoint?.component.id == component.id ? hoveredConnectionPoint?.point : nil,
+                isTestMode: isTestMode,
                 onTap: { onComponentTap($0) },
                 onDrag: { comp, location in onComponentDrag(comp, location, geometry) },
                 onConnectionDragStart: { comp, start, current in onConnectionDragStart(comp, start, current) },
@@ -247,6 +251,7 @@ struct TopologyElementView: View {
                 connection: connection,
                 topology: topologyElement.topology,
                 geometry: geometry,
+                isTestMode: isTestMode,
                 onDelete: { conn in topologyElement.removeConnection(conn) }
             )
         }

@@ -11,6 +11,7 @@ struct ConnectionView: View {
     let connection: NetworkConnection
     @ObservedObject var topology: NetworkTopology
     let geometry: GeometryProxy
+    var isTestMode: Bool = false // Test mode - narančasta boja konekcija
     let onDelete: ((NetworkConnection) -> Void)?
     
     var body: some View {
@@ -24,11 +25,35 @@ struct ConnectionView: View {
                 let fromPoint = getFromPoint(fromPos: fromPos, toPos: toPos)
                 let toPoint = getToPoint(fromPos: fromPos, toPos: toPos)
                 
-                ConnectionLine(
-                    from: fromPoint,
-                    to: toPoint,
-                    type: connection.connectionType
-                )
+                // Izračunaj točke na rubu kvadrata (35px od centra - polovica od 70x70)
+                let fromEdgePoint = getEdgePoint(componentCenter: fromPos, pinPoint: fromPoint, componentSize: 35)
+                let toEdgePoint = getEdgePoint(componentCenter: toPos, pinPoint: toPoint, componentSize: 35)
+                
+                ZStack {
+                    // Glavna linija od pina do pina
+                    ConnectionLine(
+                        from: fromPoint,
+                        to: toPoint,
+                        type: connection.connectionType,
+                        isTestMode: isTestMode
+                    )
+                    
+                    // Mala linija od ruba kvadrata do pina (from)
+                    ConnectionLine(
+                        from: fromEdgePoint,
+                        to: fromPoint,
+                        type: connection.connectionType,
+                        isTestMode: isTestMode
+                    )
+                    
+                    // Mala linija od pina do ruba kvadrata (to)
+                    ConnectionLine(
+                        from: toPoint,
+                        to: toEdgePoint,
+                        type: connection.connectionType,
+                        isTestMode: isTestMode
+                    )
+                }
                 .zIndex(1)
             }
         }
@@ -69,6 +94,26 @@ struct ConnectionView: View {
         }
         
         return ConnectionPointDetector.position(for: connectionPoint, componentCenter: componentCenter)
+    }
+    
+    // Izračunaj točku na rubu kvadrata u smjeru prema pinu
+    private func getEdgePoint(componentCenter: CGPoint, pinPoint: CGPoint, componentSize: CGFloat) -> CGPoint {
+        let dx = pinPoint.x - componentCenter.x
+        let dy = pinPoint.y - componentCenter.y
+        let distance = sqrt(dx * dx + dy * dy)
+        
+        guard distance > 0 else {
+            return componentCenter
+        }
+        
+        // Normaliziraj vektor i pomnoži s veličinom komponente (rub kvadrata)
+        let normalizedDx = dx / distance
+        let normalizedDy = dy / distance
+        
+        return CGPoint(
+            x: componentCenter.x + normalizedDx * componentSize,
+            y: componentCenter.y + normalizedDy * componentSize
+        )
     }
 }
 

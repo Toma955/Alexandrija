@@ -326,7 +326,7 @@ struct ClientDeviceSelectorView: View {
         let nextType = types[(currentIndex + 1) % types.count]
         let componentCenter = CGPoint(x: x, y: y)
         
-        return NetworkComponentView(component: component, iconColor: color, pinColor: color, hoveredPoint: hoveredPoint)
+        return NetworkComponentView(component: component, topology: topology, iconColor: color, pinColor: color, hoveredPoint: hoveredPoint)
             .frame(width: 90, height: 90)
             .contentShape(Rectangle())
             .position(x: xRelative, y: yRelative) // Use relative position within zone

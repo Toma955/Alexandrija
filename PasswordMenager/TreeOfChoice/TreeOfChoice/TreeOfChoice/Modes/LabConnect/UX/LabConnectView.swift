@@ -192,7 +192,9 @@ struct LabConnectView: View {
 
             // Row 3: Autoconnect, Test (Green)
             ActionButton(title: "autocnect", icon: "arrow.triangle.2.circlepath", color: .green) {}
-            ActionButton(title: "Test", icon: "checkmark.circle", color: .green) {}
+            ActionButton(title: "Test", icon: "checkmark.circle", color: .green) {
+                canvasElement.toggleTestMode()
+            }
         }
         .padding(10)
         .frame(width: 280, height: 200) // Ista visina kao ComponentPaletteView: 200px

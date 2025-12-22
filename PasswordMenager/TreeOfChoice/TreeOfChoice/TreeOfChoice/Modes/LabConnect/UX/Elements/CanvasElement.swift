@@ -13,6 +13,7 @@ class CanvasElement: ObservableObject {
     @Published var topologyViewElement: TopologyViewElement
     @Published var showComponentPalette: Bool = true
     @Published var draggedComponent: NetworkComponent?
+    @Published var isTestMode: Bool = false // Test mode - fiksira elemente i mijenja izgled
     
     init() {
         self.topologyViewElement = TopologyViewElement()
@@ -20,6 +21,10 @@ class CanvasElement: ObservableObject {
     
     func deleteAllTopology() {
         topologyViewElement.deleteAllTopology()
+    }
+    
+    func toggleTestMode() {
+        isTestMode.toggle()
     }
 }
 
@@ -32,9 +37,12 @@ struct CanvasElementView: View {
         VStack(spacing: 20) { // 20px razmak između palette i topologije
             // Component Palette above canvas - automatska visina
             if canvasElement.showComponentPalette {
-                ComponentPaletteView(draggedComponent: $canvasElement.draggedComponent)
-                    .padding(.leading, 5) // 5px od lijeve bijele linije
-                    .padding(.trailing, 5) // 5px od desne bijele linije
+                ComponentPaletteView(
+                    draggedComponent: $canvasElement.draggedComponent,
+                    isTestMode: canvasElement.isTestMode
+                )
+                .padding(.leading, 5) // 5px od lijeve bijele linije
+                .padding(.trailing, 5) // 5px od desne bijele linije
             }
             
             // Topology frame - 55% of screen height, full width
@@ -51,7 +59,8 @@ struct CanvasElementView: View {
                         GeometryReader { frameGeometry in
                             TopologyViewElementView(
                                 topologyViewElement: canvasElement.topologyViewElement,
-                                geometry: frameGeometry
+                                geometry: frameGeometry,
+                                isTestMode: canvasElement.isTestMode
                             )
                         }
                     }

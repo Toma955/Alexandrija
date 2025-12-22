@@ -10,8 +10,14 @@ import SwiftUI
 struct ComponentDropDelegate: DropDelegate {
     let topology: NetworkTopology
     let geometry: GeometryProxy
+    var isTestMode: Bool = false // Test mode - onemogućava dodavanje komponenti
     
     func performDrop(info: DropInfo) -> Bool {
+        // Ako je test mode aktivan, ne dozvoli dodavanje komponenti
+        guard !isTestMode else {
+            return false
+        }
+        
         guard info.location.x >= 0 && info.location.x <= geometry.size.width else {
             return false
         }
