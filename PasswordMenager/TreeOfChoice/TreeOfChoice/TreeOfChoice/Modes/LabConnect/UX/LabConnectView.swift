@@ -148,26 +148,41 @@ struct LabConnectView: View {
                 }
             }
             
-            // Veliki kvadrat ispod - 10px od bijele linije, 10px od lijevog i desnog ruba
-            if lineYPosition > 0 {
-                GeometryReader { fullGeometry in
+            // Veliki kvadrat na dnu - 10px od dna ekrana, 10px od lijevog/desnog ruba, i 10px od vrha bijele linije ako postoji
+            GeometryReader { fullGeometry in
+                let squareWidth = fullGeometry.size.width - 20 // 10px lijevo + 10px desno = 20px ukupno
+                let squareX = fullGeometry.size.width / 2 // Centar ekrana
+                
+                // Donji rub kvadrata je uvijek 10px od dna
+                let bottomEdge = fullGeometry.size.height - 10
+                
+                // Gornji rub kvadrata je 10px ispod bijele linije (ako postoji)
+                let topEdge: CGFloat
+                if lineYPosition > 0 {
                     let adjustedY = lineYPosition - fullGeometry.frame(in: .global).minY
-                    let marginFromLine: CGFloat = 10
-                    let marginFromSides: CGFloat = 10
-                    let availableWidth = fullGeometry.size.width - (marginFromSides * 2)
-                    let availableHeight = fullGeometry.size.height - adjustedY - marginFromLine
-                    
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.2))
-                        .cornerRadius(12)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.gray, lineWidth: 2)
-                        )
-                        .frame(width: availableWidth, height: availableHeight)
-                        .offset(x: marginFromSides, y: adjustedY + marginFromLine)
+                    topEdge = adjustedY + 10 // 10px ispod bijele linije
+                } else {
+                    // Ako nema linije, koristi fiksnu visinu
+                    topEdge = bottomEdge - 200 // Fiksna visina 200px
                 }
+                
+                let squareHeight = bottomEdge - topEdge
+                let squareY = topEdge + (squareHeight / 2) // Centar kvadrata
+                
+                return Rectangle()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(width: squareWidth, height: squareHeight)
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.gray, lineWidth: 2)
+                    )
+                    .position(
+                        x: squareX,
+                        y: squareY
+                    )
             }
+            
         }
     }
     
