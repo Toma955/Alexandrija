@@ -6,12 +6,16 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct NetworkComponentView: View {
     @ObservedObject var component: NetworkComponent
     var iconColor: Color? = nil // Optional override color based on area
     var pinColor: Color? = nil // Optional override color for connection pins
     var hoveredPoint: ConnectionPoint? = nil
+    var onIconTap: (() -> Void)? = nil // Callback za klik na ikonu
+    
+    @State private var isIconPressed = false
     
     private var isAreaComponent: Bool {
         component.componentType == .userArea ||
@@ -22,9 +26,8 @@ struct NetworkComponentView: View {
     
     var body: some View {
         VStack(spacing: 4) {
-            Image(systemName: ComponentIconHelper.icon(for: component.componentType))
-                .font(.title3) // Smanjeno sa .title2 na .title3
-                .foregroundColor(iconColorForUser ?? iconColor ?? ComponentColorHelper.color(for: component.componentType))
+            // Koristi custom ikonu ako postoji, inače SF Symbol
+            iconView
             
             // Natpis samo za komponente koje NISU Area (Area komponente imaju natpis ispod donje strelice)
             if !isAreaComponent {
@@ -70,33 +73,6 @@ struct NetworkComponentView: View {
                     .fill(connectionPointColor)
                     .frame(width: hoveredPoint == .right ? 14 : 7, height: hoveredPoint == .right ? 14 : 7)
                     .offset(x: 45)
-                
-                // Dodatni krugovi sa strelicama pod 45° samo za User komponentu (NE za Area komponente)
-                if component.componentType == .user {
-                    // Top-right (gore-desno) - strelica pod 45° gore-desno
-                    userButtonWithArrow(
-                        angle: 45,
-                        offset: CGSize(width: 35, height: -35)
-                    )
-                    
-                    // Bottom-right (dolje-desno) - strelica pod 45° dolje-desno
-                    userButtonWithArrow(
-                        angle: 135,
-                        offset: CGSize(width: 35, height: 35)
-                    )
-                    
-                    // Bottom-left (dolje-lijevo) - strelica pod 45° dolje-lijevo
-                    userButtonWithArrow(
-                        angle: 225,
-                        offset: CGSize(width: -35, height: 35)
-                    )
-                    
-                    // Top-left (gore-lijevo) - strelica pod 45° gore-lijevo
-                    userButtonWithArrow(
-                        angle: 315,
-                        offset: CGSize(width: -35, height: -35)
-                    )
-                }
             }
         )
         .contentShape(
@@ -112,6 +88,47 @@ struct NetworkComponentView: View {
                 )
                 path.addRoundedRect(in: rect, cornerSize: CGSize(width: 12, height: 12))
             }
+        )
+    }
+    
+    @ViewBuilder
+    private var iconView: some View {
+        Group {
+            if let customIconName = ComponentIconHelper.customIconName(for: component.componentType),
+               let nsImage = ComponentIconHelper.loadCustomIcon(named: customIconName) {
+                // Koristi NSImage za učitavanje iz foldera
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 40, height: 40)
+            } else {
+                Image(systemName: ComponentIconHelper.icon(for: component.componentType))
+                    .font(.title3)
+                    .foregroundColor(iconColorForUser ?? iconColor ?? ComponentColorHelper.color(for: component.componentType))
+            }
+        }
+        .scaleEffect(isIconPressed ? 0.9 : 1.0)
+        .opacity(isIconPressed ? 0.7 : 1.0)
+        .animation(.easeInOut(duration: 0.1), value: isIconPressed)
+        .contentShape(Rectangle())
+        .simultaneousGesture(
+            // Tap gesture - klik na ikonu
+            TapGesture()
+                .onEnded { _ in
+                    onIconTap?()
+                }
+        )
+        .simultaneousGesture(
+            // Press gesture za visual feedback
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    if !isIconPressed {
+                        isIconPressed = true
+                    }
+                }
+                .onEnded { _ in
+                    isIconPressed = false
+                }
         )
     }
     

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct ComponentPaletteItem: View {
     let componentType: NetworkComponent.ComponentType
@@ -26,10 +27,7 @@ struct ComponentPaletteItem: View {
     var body: some View {
         // Standard layout for all components (including DNS and DHCP servers)
         VStack(spacing: 3) {
-            Image(systemName: ComponentIconHelper.icon(for: componentType))
-                .font(.title2) // Povećano sa .title3 na .title2
-                .foregroundColor(Color(red: 1.0, green: 0.36, blue: 0.0)) // Orange color
-                .frame(width: 40, height: 40) // Povećano sa 32x32 na 40x40
+            iconView
 
             // Name in 2 lines
             VStack(spacing: 2) {
@@ -48,6 +46,23 @@ struct ComponentPaletteItem: View {
         .padding(.horizontal, 4)
         .background(Color.black.opacity(0.3)) // Crna boja umjesto sive
         .cornerRadius(6)
+    }
+    
+    @ViewBuilder
+    private var iconView: some View {
+        if let customIconName = ComponentIconHelper.customIconName(for: componentType),
+           let nsImage = ComponentIconHelper.loadCustomIcon(named: customIconName) {
+            // Koristi NSImage za učitavanje iz foldera
+            Image(nsImage: nsImage)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 40, height: 40)
+        } else {
+            Image(systemName: ComponentIconHelper.icon(for: componentType))
+                .font(.title2)
+                .foregroundColor(Color(red: 1.0, green: 0.36, blue: 0.0))
+                .frame(width: 40, height: 40)
+        }
     }
 }
 

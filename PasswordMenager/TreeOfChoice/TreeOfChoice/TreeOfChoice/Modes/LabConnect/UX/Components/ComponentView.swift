@@ -142,7 +142,11 @@ struct ComponentView: View {
             NetworkComponentView(
                 component: component,
                 iconColor: iconColor,
-                hoveredPoint: hoveredPoint
+                hoveredPoint: hoveredPoint,
+                onIconTap: {
+                    // Klik na ikonu - pozovi onTap handler
+                    onTap(component)
+                }
             )
             .position(
                 // Koristi fiksnu poziciju - tijekom resize-a koristi početnu poziciju, inače normalnu

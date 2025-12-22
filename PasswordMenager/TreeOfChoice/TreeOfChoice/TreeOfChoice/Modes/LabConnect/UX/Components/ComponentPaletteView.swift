@@ -27,14 +27,43 @@ struct ComponentPaletteView: View {
     
     // Gornji red - 9 regularnih komponenti + DNS Server na kraju (10 ukupno)
     private var topRowComponents: [NetworkComponent.ComponentType] {
-        Array(regularComponents.prefix(9)) + [.dnsServer]
+        var components = Array(regularComponents.prefix(9))
+        // Zamijeni Server (indeks 1 - 2. polje) sa Cell Tower
+        if components.count > 1, components[1] == .server {
+            components[1] = .cellTower
+        }
+        // Zamijeni Router (indeks 2 - 3. polje) sa Satellite Gateway
+        // Prvo pronađi Router i Satellite Gateway u regularComponents
+        let suffixComponents = Array(regularComponents.suffix(from: 9))
+        if let routerIndex = components.firstIndex(of: .router),
+           let satelliteIndex = suffixComponents.firstIndex(of: .satelliteGateway) {
+            // Zamijeni Router sa Satellite Gateway
+            components[routerIndex] = .satelliteGateway
+        }
+        return components + [NetworkComponent.ComponentType.dnsServer]
     }
     
     // Donji red - 4 Area komponente + 5 regularnih + DHCP Server na kraju (10 ukupno)
     private var bottomRowComponents: [NetworkComponent.ComponentType] {
-        [.userArea, .businessArea, .businessPrivateArea, .nilterniusArea] + 
-        Array(regularComponents.suffix(from: 9)) + 
-        [.dhcpServer]
+        var suffixComponents = Array(regularComponents.suffix(from: 9))
+        var areaComponents: [NetworkComponent.ComponentType] = [.userArea, .businessArea, .businessPrivateArea, .nilterniusArea]
+        
+        // Zamijeni Cell Tower sa Serverom u suffixComponents
+        if let cellTowerIndex = suffixComponents.firstIndex(of: .cellTower) {
+            suffixComponents[cellTowerIndex] = NetworkComponent.ComponentType.server
+        }
+        
+        // Zamijeni Satellite Gateway (6. polje = indeks 5 u bottomRowComponents) sa Routerom
+        // Satellite Gateway je u suffixComponents, a Router je u topRowComponents
+        let topComponents = Array(regularComponents.prefix(9))
+        if let satelliteIndex = suffixComponents.firstIndex(of: .satelliteGateway),
+           let routerIndex = topComponents.firstIndex(of: .router) {
+            // Zamijeni Satellite Gateway sa Routerom
+            suffixComponents[satelliteIndex] = NetworkComponent.ComponentType.router
+        }
+        
+        var allBottom = areaComponents + suffixComponents + [.dhcpServer]
+        return allBottom
     }
     
     var body: some View {
