@@ -36,6 +36,10 @@
 				AI/NeuralNetworks/Untitled.swift,
 				App/Shell/ModeLauncherView.swift,
 				App/Shell/Untitled.swift,
+				Modes/LabConnect/UX/Components/FirewallComponentView.swift,
+				Shared/NetworkTopology/UX/Components/Infrastructure/RouterComponentView.swift,
+				Shared/NetworkTopology/UX/Components/Infrastructure/ServerComponentView.swift,
+				Shared/NetworkTopology/UX/Components/Security/FirewallComponentView.swift,
 			);
 			target = F075795E2EE7BD0A006A138F /* TreeOfChoice */;
 		};

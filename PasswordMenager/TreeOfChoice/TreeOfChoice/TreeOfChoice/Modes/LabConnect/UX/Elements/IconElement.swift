@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 /// Element koji predstavlja ikonu komponente
 /// Odgovoran za prikaz ikone i njezine interakcije
@@ -45,10 +46,7 @@ struct IconElementView: View {
     
     var body: some View {
         VStack(spacing: 8) {
-            Image(systemName: ComponentIconHelper.icon(for: iconElement.componentType))
-                .font(.title2)
-                .foregroundColor(ComponentColorHelper.color(for: iconElement.componentType))
-                .frame(width: 50, height: 50)
+            iconView
                 .background(
                     RoundedRectangle(cornerRadius: 8)
                         .fill(iconElement.isSelected ? Color.blue.opacity(0.3) : Color.clear)
@@ -83,6 +81,23 @@ struct IconElementView: View {
                     iconElement.stopDragging()
                 }
         )
+    }
+    
+    @ViewBuilder
+    private var iconView: some View {
+        if let customIconName = ComponentIconHelper.customIconName(for: iconElement.componentType),
+           let nsImage = ComponentIconHelper.loadCustomIcon(named: customIconName) {
+            // Koristi NSImage za učitavanje iz foldera
+            Image(nsImage: nsImage)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 50, height: 50)
+        } else {
+            Image(systemName: ComponentIconHelper.icon(for: iconElement.componentType))
+                .font(.title2)
+                .foregroundColor(ComponentColorHelper.color(for: iconElement.componentType))
+                .frame(width: 50, height: 50)
+        }
     }
 }
 
