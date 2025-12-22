@@ -109,9 +109,6 @@ struct LabConnectView: View {
                 }
                 .frame(width: 300)
                 
-                Divider()
-                    .background(Color.white.opacity(0.2))
-                
                 // Center - Network Topology Canvas
                 NetworkTopologyCanvasView(canvasElement: canvasElement)
                     .environmentObject(localization)
@@ -119,9 +116,6 @@ struct LabConnectView: View {
                     .onPreferenceChange(LinePositionKey.self) { value in
                         lineYPosition = value
                     }
-                
-                Divider()
-                    .background(Color.white.opacity(0.2))
                 
                 // Right panel s ClientSidesView
                 GeometryReader { panelGeometry in
@@ -154,19 +148,26 @@ struct LabConnectView: View {
                 }
             }
             
-            // Bijela linija preko cijelog ekrana
+            // Veliki kvadrat ispod - 10px od bijele linije, 10px od lijevog i desnog ruba
             if lineYPosition > 0 {
                 GeometryReader { fullGeometry in
                     let adjustedY = lineYPosition - fullGeometry.frame(in: .global).minY
+                    let marginFromLine: CGFloat = 10
+                    let marginFromSides: CGFloat = 10
+                    let availableWidth = fullGeometry.size.width - (marginFromSides * 2)
+                    let availableHeight = fullGeometry.size.height - adjustedY - marginFromLine
                     
                     Rectangle()
-                        .fill(Color.white.opacity(0.5))
-                        .frame(height: 1)
-                        .frame(maxWidth: .infinity)
-                        .offset(y: adjustedY)
+                        .fill(Color.gray.opacity(0.2))
+                        .cornerRadius(12)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.gray, lineWidth: 2)
+                        )
+                        .frame(width: availableWidth, height: availableHeight)
+                        .offset(x: marginFromSides, y: adjustedY + marginFromLine)
                 }
             }
-            
         }
     }
     
