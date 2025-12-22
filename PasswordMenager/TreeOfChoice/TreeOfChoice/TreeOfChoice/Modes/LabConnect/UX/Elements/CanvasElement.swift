@@ -26,6 +26,12 @@ class CanvasElement: ObservableObject {
     func toggleTestMode() {
         isTestMode.toggle()
     }
+    
+    @MainActor
+    func deleteAllConnections() {
+        topologyViewElement.topologyElement.deleteAllConnections()
+        objectWillChange.send()
+    }
 }
 
 /// View wrapper za CanvasElement

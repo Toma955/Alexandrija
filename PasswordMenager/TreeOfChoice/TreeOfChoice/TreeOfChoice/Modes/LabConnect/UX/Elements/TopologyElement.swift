@@ -69,6 +69,16 @@ class TopologyElement: ObservableObject {
         
         topology.objectWillChange.send()
     }
+    
+    @MainActor
+    func deleteAllConnections() {
+        // Remove all connections but keep components
+        // Postavi na prazan array umjesto removeAll() da SwiftUI detektira promjenu
+        topology.connections = []
+        topology.objectWillChange.send()
+        objectWillChange.send()
+        updateSimulation()
+    }
 }
 
 /// View wrapper za TopologyElement

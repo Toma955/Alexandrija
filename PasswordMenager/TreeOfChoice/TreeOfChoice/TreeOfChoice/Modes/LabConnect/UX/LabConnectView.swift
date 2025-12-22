@@ -188,11 +188,13 @@ struct LabConnectView: View {
             ActionButton(title: "delete topologi", icon: "trash", color: .red) {
                 canvasElement.deleteAllTopology()
             }
-            ActionButton(title: "delete conections", icon: "trash.circle", color: .red) {}
+            ActionButton(title: "delete conections", icon: "trash.circle", color: .red) {
+                canvasElement.deleteAllConnections()
+            }
 
-            // Row 3: Autoconnect, Test (Green)
+            // Row 3: Autoconnect, Edit mode / Config mode (Green)
             ActionButton(title: "autocnect", icon: "arrow.triangle.2.circlepath", color: .green) {}
-            ActionButton(title: "Test", icon: "checkmark.circle", color: .green) {
+            ActionButton(title: canvasElement.isTestMode ? "Config mode" : "Edit mode", icon: "checkmark.circle", color: .green) {
                 canvasElement.toggleTestMode()
             }
         }
