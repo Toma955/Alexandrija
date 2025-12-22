@@ -85,53 +85,52 @@ struct BottomControlPanelView: View {
     private var animatedOrangeButton: some View {
         ZStack {
             // Background - mali obli kvadrat koji raste u polukrug kada je expanded
-            Button(action: {
-                isHovered = false
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    bottomControlPanel.toggleExpanded()
-                }
-            }) {
-                Group {
-                    if bottomControlPanel.isExpanded {
-                        // Veliki zaobljeni kvadrat kada je expanded - jako zaobljeni kutovi
-                        RoundedRectangle(cornerRadius: 35) // Veliki corner radius za jako zaobljene kutove
-                            .fill(accentOrange)
-                            .frame(width: 320, height: 70) // Smanjeno da bude malo veći od botuna
-                    } else {
-                        // Mali obli element kada je collapsed
-                        Capsule()
-                            .fill(accentOrange)
-                            .frame(
-                                width: isHovered ? 70 : 60,
-                                height: isHovered ? 12 : 10
-                            )
-                    }
-                }
-            }
-            .buttonStyle(.plain)
-            .animation(.spring(response: 0.4, dampingFraction: 0.7), value: bottomControlPanel.isExpanded)
-            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isHovered)
-            .onContinuousHover { phase in
-                if !bottomControlPanel.isExpanded {
-                    switch phase {
-                    case .active:
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            isHovered = true
-                        }
-                    case .ended:
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            isHovered = false
-                        }
-                    }
-                } else {
+            // Button se aktivira samo kada je collapsed - kada je expanded, ne smije se zatvoriti osim preko collapse botuna
+            if !bottomControlPanel.isExpanded {
+                Button(action: {
                     isHovered = false
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                        bottomControlPanel.toggleExpanded()
+                    }
+                }) {
+                    // Mali obli element kada je collapsed
+                    Capsule()
+                        .fill(accentOrange)
+                        .frame(
+                            width: isHovered ? 70 : 60,
+                            height: isHovered ? 12 : 10
+                        )
                 }
+                .buttonStyle(.plain)
+                .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isHovered)
+            } else {
+                // Kada je expanded, samo prikaži pozadinu bez button akcije
+                RoundedRectangle(cornerRadius: 30) // Prilagođen corner radius
+                    .fill(accentOrange)
+                    .frame(width: 320, height: 60) // Smanjena visina da bude samo malo veći
             }
             
             // Kontrole unutar expanded kvadrata
             if bottomControlPanel.isExpanded {
                 expandedControls
                     .transition(.opacity.combined(with: .scale(scale: 0.9)))
+            }
+        }
+        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: bottomControlPanel.isExpanded)
+        .onContinuousHover { phase in
+            if !bottomControlPanel.isExpanded {
+                switch phase {
+                case .active:
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isHovered = true
+                    }
+                case .ended:
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isHovered = false
+                    }
+                }
+            } else {
+                isHovered = false
             }
         }
         .onChange(of: bottomControlPanel.isExpanded) { newValue in
@@ -154,17 +153,18 @@ struct BottomControlPanelView: View {
                     .fill(accentOrange)
                     .frame(width: 42, height: 36) // Povećano da elegantno stane veća ikona
                 
-                // Crni krug koji se pomiče - mora biti u centru ikone
-                Circle()
-                    .fill(Color.black)
-                    .frame(width: 34, height: 34) // Povećano proporcionalno
-                    .offset(x: bottomControlPanel.isGameMode ? -20 : 13) // Prilagođen offset - -20 da bude u centru gamepad ikone
-                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: bottomControlPanel.isGameMode)
-                
                 // Ikone IZNAD crnog kruga - bijele i veće
                 HStack(spacing: 8) { // Povećan spacing za razdvajanje
                     // Game mode ikona (lijevo) - udaljena i povećana
                     ZStack {
+                        // Crni krug koji se pomiče - mora biti u centru ikone kada je game mode
+                        if bottomControlPanel.isGameMode {
+                            Circle()
+                                .fill(Color.black)
+                                .frame(width: 38, height: 38) // Povećano s 34 na 38
+                                .zIndex(0) // Ispod ikone
+                        }
+                        
                         // Gamepad ikona - bijela s maskom, povećana
                         if let nsImage = loadIcon(named: "gamepad") {
                             Color.white
@@ -175,10 +175,12 @@ struct BottomControlPanelView: View {
                                         .frame(width: 58, height: 58) // Povećano s 50 na 58
                                 )
                                 .frame(width: 58, height: 58)
+                                .zIndex(1) // Iznad crnog kruga
                         } else {
                             Image(systemName: "gamecontroller.fill")
                                 .font(.title) // Povećano s title2 na title
                                 .foregroundColor(.white)
+                                .zIndex(1)
                         }
                     }
                     .frame(width: 30, height: 40) // Povećano frame za veću ikonu
@@ -194,6 +196,14 @@ struct BottomControlPanelView: View {
                     
                     // Track mode ikona (desno)
                     ZStack {
+                        // Crni krug koji se pomiče - mora biti u centru ikone kada je track mode
+                        if !bottomControlPanel.isGameMode {
+                            Circle()
+                                .fill(Color.black)
+                                .frame(width: 38, height: 38) // Povećano s 34 na 38
+                                .zIndex(0) // Ispod ikone
+                        }
+                        
                         // Tracks ikona - bijela s maskom
                         if let nsImage = loadIcon(named: "Tracks") {
                             Color.white
@@ -201,16 +211,18 @@ struct BottomControlPanelView: View {
                                     Image(nsImage: nsImage)
                                         .resizable()
                                         .scaledToFit()
-                                        .frame(width: 38, height: 38) // Smanjeno s 45 na 38
+                                        .frame(width: 28, height: 28) // Smanjeno s 38 na 28 da stane u krug
                                 )
-                                .frame(width: 38, height: 38)
+                                .frame(width: 28, height: 28)
+                                .zIndex(1) // Iznad crnog kruga
                         } else {
                             Image(systemName: "map.fill")
-                                .font(.caption) // Smanjeno s title3 na caption
+                                .font(.caption2) // Smanjeno s caption na caption2
                                 .foregroundColor(.white)
+                                .zIndex(1)
                         }
                     }
-                    .frame(width: 22, height: 32) // Smanjeno proporcionalno
+                    .frame(width: 20, height: 30) // Smanjeno proporcionalno
                     .padding(.trailing, 4) // Razdvojeno malo desno
                     .contentShape(Rectangle())
                     .onTapGesture {

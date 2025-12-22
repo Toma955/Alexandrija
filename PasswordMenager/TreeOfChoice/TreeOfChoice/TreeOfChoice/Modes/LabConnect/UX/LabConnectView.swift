@@ -239,7 +239,7 @@ struct LabConnectView: View {
             ActionButton(title: "upload", icon: "square.and.arrow.up", color: accentOrange) {}
 
             // Row 2: Delete Topology, Delete Connections (Red)
-            ActionButton(title: "delete topologi", icon: "trash", color: .red) {
+            ActionButton(title: "delete topologi", icon: "trash", color: .red, fontSize: .caption2) {
                 canvasElement.deleteAllTopology()
             }
             ActionButton(title: "delete conections", icon: "trash.circle", color: .red) {
@@ -344,7 +344,16 @@ struct ActionButton: View {
     let title: String
     let icon: String
     let color: Color
+    let fontSize: Font?
     let action: () -> Void
+    
+    init(title: String, icon: String, color: Color, fontSize: Font? = nil, action: @escaping () -> Void) {
+        self.title = title
+        self.icon = icon
+        self.color = color
+        self.fontSize = fontSize
+        self.action = action
+    }
     
     var body: some View {
         Button(action: action) {
@@ -354,7 +363,7 @@ struct ActionButton: View {
                     .foregroundColor(.white)
                 
                 Text(title)
-                    .font(.caption)
+                    .font(fontSize ?? .caption)
                     .foregroundColor(.white)
             }
             .frame(maxWidth: .infinity)
