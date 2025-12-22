@@ -35,10 +35,12 @@ struct ConnectionView: View {
                         from: fromPoint,
                         to: toPoint,
                         type: connection.connectionType,
-                        isTestMode: isTestMode
+                        isTestMode: isTestMode,
+                        fromPin: connection.fromConnectionPoint,
+                        toPin: connection.toConnectionPoint
                     )
                     
-                    // Mala linija od ruba kvadrata do pina (from)
+                    // Mala linija od ruba kvadrata do pina (from) - uvijek ravna
                     ConnectionLine(
                         from: fromEdgePoint,
                         to: fromPoint,
@@ -46,7 +48,7 @@ struct ConnectionView: View {
                         isTestMode: isTestMode
                     )
                     
-                    // Mala linija od pina do ruba kvadrata (to)
+                    // Mala linija od pina do ruba kvadrata (to) - uvijek ravna
                     ConnectionLine(
                         from: toPoint,
                         to: toEdgePoint,

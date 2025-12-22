@@ -17,6 +17,7 @@ struct LabConnectView: View {
     @State private var isTraining = false
     @State private var trainingProgress: Double = 0.0
     @State private var currentEpoch: Int = 0
+    @State private var lineYPosition: CGFloat = 0
     
     var body: some View {
         ZStack {
@@ -109,6 +110,9 @@ struct LabConnectView: View {
                 NetworkTopologyCanvasView(canvasElement: canvasElement)
                     .environmentObject(localization)
                     .frame(maxWidth: .infinity)
+                    .onPreferenceChange(LinePositionKey.self) { value in
+                        lineYPosition = value
+                    }
                 
                 Divider()
                     .background(Color.white.opacity(0.2))
@@ -135,6 +139,19 @@ struct LabConnectView: View {
                     actionButtonsPanel
                         .padding(.trailing, 5) // 5px od desne bijele linije
                     Spacer()
+                }
+            }
+            
+            // Bijela linija preko cijelog ekrana
+            if lineYPosition > 0 {
+                GeometryReader { fullGeometry in
+                    let adjustedY = lineYPosition - fullGeometry.frame(in: .global).minY
+                    
+                    Rectangle()
+                        .fill(Color.white.opacity(0.5))
+                        .frame(height: 1)
+                        .frame(maxWidth: .infinity)
+                        .offset(y: adjustedY)
                 }
             }
         }

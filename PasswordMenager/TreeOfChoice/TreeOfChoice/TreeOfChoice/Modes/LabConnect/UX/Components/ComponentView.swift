@@ -37,6 +37,7 @@ struct ComponentView: View {
     @State private var resizeEdge: AreaResizeEdge? = nil
     @State private var draggingHandlePosition: CGPoint? = nil // Pozicija strelice koja se vuče (prati miš)
     @State private var dragStartAreaCenter: CGPoint? = nil // Početni areaCenter prije početka drag-a crnog kvadrata
+    @State private var mouseLocation: CGPoint? = nil // Lokacija miša za prikaz najbliže strelice
     
     enum AreaResizeCorner {
         case topRight, bottomRight, bottomLeft, topLeft
@@ -92,12 +93,11 @@ struct ComponentView: View {
                         if corner != .topLeft {
                             areaResizeHandle(corner: .topLeft, areaWidth: areaWidth, areaHeight: areaHeight, areaColor: areaColor, areaCenter: areaCenter)
                         }
-                    } else {
-                        // Prikaži sve strelice na normalnim pozicijama
-                        areaResizeHandle(corner: .topRight, areaWidth: areaWidth, areaHeight: areaHeight, areaColor: areaColor, areaCenter: areaCenter)
-                        areaResizeHandle(corner: .bottomRight, areaWidth: areaWidth, areaHeight: areaHeight, areaColor: areaColor, areaCenter: areaCenter)
-                        areaResizeHandle(corner: .bottomLeft, areaWidth: areaWidth, areaHeight: areaHeight, areaColor: areaColor, areaCenter: areaCenter)
-                        areaResizeHandle(corner: .topLeft, areaWidth: areaWidth, areaHeight: areaHeight, areaColor: areaColor, areaCenter: areaCenter)
+                    } else if let mousePos = mouseLocation {
+                        // Prikaži samo najbližu strelicu mišu (unutar 20px)
+                        if let closestCorner = findClosestCorner(to: mousePos, areaWidth: areaWidth, areaHeight: areaHeight, areaCenter: areaCenter) {
+                            areaResizeHandle(corner: closestCorner, areaWidth: areaWidth, areaHeight: areaHeight, areaColor: areaColor, areaCenter: areaCenter)
+                        }
                     }
                     
                     // Strelice na sredinama stranica
@@ -117,12 +117,11 @@ struct ComponentView: View {
                         if edge != .left {
                             areaEdgeResizeHandle(edge: .left, areaWidth: areaWidth, areaHeight: areaHeight, areaColor: areaColor, areaCenter: areaCenter)
                         }
-                    } else {
-                        // Prikaži sve strelice na normalnim pozicijama
-                        areaEdgeResizeHandle(edge: .top, areaWidth: areaWidth, areaHeight: areaHeight, areaColor: areaColor, areaCenter: areaCenter)
-                        areaEdgeResizeHandle(edge: .right, areaWidth: areaWidth, areaHeight: areaHeight, areaColor: areaColor, areaCenter: areaCenter)
-                        areaEdgeResizeHandle(edge: .bottom, areaWidth: areaWidth, areaHeight: areaHeight, areaColor: areaColor, areaCenter: areaCenter)
-                        areaEdgeResizeHandle(edge: .left, areaWidth: areaWidth, areaHeight: areaHeight, areaColor: areaColor, areaCenter: areaCenter)
+                    } else if let mousePos = mouseLocation {
+                        // Prikaži samo najbližu strelicu mišu (unutar 20px)
+                        if let closestEdge = findClosestEdge(to: mousePos, areaWidth: areaWidth, areaHeight: areaHeight, areaCenter: areaCenter) {
+                            areaEdgeResizeHandle(edge: closestEdge, areaWidth: areaWidth, areaHeight: areaHeight, areaColor: areaColor, areaCenter: areaCenter)
+                        }
                     }
                     
                     // Natpis ispod donje strelice
@@ -137,6 +136,14 @@ struct ComponentView: View {
                 }
                 .position(x: areaCenter.x, y: areaCenter.y)
                 .allowsHitTesting(true)
+                .onContinuousHover { phase in
+                    switch phase {
+                    case .active(let location):
+                        mouseLocation = location
+                    case .ended:
+                        mouseLocation = nil
+                    }
+                }
             }
             
             // Komponenta (crni kvadrat ili krug u test modu) - UVIJEK na fiksnoj poziciji, ne pomiče se tijekom resize-a
@@ -721,6 +728,66 @@ struct ComponentView: View {
         }
         
         return nil
+    }
+    
+    // Pronađi najbližu kutnu strelicu mišu
+    private func findClosestCorner(to mouseLocation: CGPoint, areaWidth: CGFloat, areaHeight: CGFloat, areaCenter: CGPoint) -> AreaResizeCorner? {
+        let handleOffset: CGFloat = 8 // Offset za strelicu izvan kvadrata
+        let hitRadius: CGFloat = 20 // Radius unutar kojeg se strelica prikazuje
+        
+        var closestCorner: AreaResizeCorner? = nil
+        var minDistance: CGFloat = .infinity
+        
+        let corners: [(CGSize, AreaResizeCorner)] = [
+            (CGSize(width: areaWidth / 2 + handleOffset, height: -areaHeight / 2 - handleOffset), .topRight),
+            (CGSize(width: areaWidth / 2 + handleOffset, height: areaHeight / 2 + handleOffset), .bottomRight),
+            (CGSize(width: -areaWidth / 2 - handleOffset, height: areaHeight / 2 + handleOffset), .bottomLeft),
+            (CGSize(width: -areaWidth / 2 - handleOffset, height: -areaHeight / 2 - handleOffset), .topLeft)
+        ]
+        
+        for (offset, corner) in corners {
+            let handlePosition = CGPoint(x: areaCenter.x + offset.width, y: areaCenter.y + offset.height)
+            let dx = mouseLocation.x - handlePosition.x
+            let dy = mouseLocation.y - handlePosition.y
+            let distance = sqrt(dx * dx + dy * dy)
+            
+            if distance <= hitRadius && distance < minDistance {
+                minDistance = distance
+                closestCorner = corner
+            }
+        }
+        
+        return closestCorner
+    }
+    
+    // Pronađi najbližu strelicu na sredini stranice mišu
+    private func findClosestEdge(to mouseLocation: CGPoint, areaWidth: CGFloat, areaHeight: CGFloat, areaCenter: CGPoint) -> AreaResizeEdge? {
+        let handleOffset: CGFloat = 8 // Offset za strelicu izvan kvadrata
+        let hitRadius: CGFloat = 20 // Radius unutar kojeg se strelica prikazuje
+        
+        var closestEdge: AreaResizeEdge? = nil
+        var minDistance: CGFloat = .infinity
+        
+        let edges: [(CGSize, AreaResizeEdge)] = [
+            (CGSize(width: 0, height: -areaHeight / 2 - handleOffset), .top),
+            (CGSize(width: areaWidth / 2 + handleOffset, height: 0), .right),
+            (CGSize(width: 0, height: areaHeight / 2 + handleOffset), .bottom),
+            (CGSize(width: -areaWidth / 2 - handleOffset, height: 0), .left)
+        ]
+        
+        for (offset, edge) in edges {
+            let handlePosition = CGPoint(x: areaCenter.x + offset.width, y: areaCenter.y + offset.height)
+            let dx = mouseLocation.x - handlePosition.x
+            let dy = mouseLocation.y - handlePosition.y
+            let distance = sqrt(dx * dx + dy * dy)
+            
+            if distance <= hitRadius && distance < minDistance {
+                minDistance = distance
+                closestEdge = edge
+            }
+        }
+        
+        return closestEdge
     }
 }
 

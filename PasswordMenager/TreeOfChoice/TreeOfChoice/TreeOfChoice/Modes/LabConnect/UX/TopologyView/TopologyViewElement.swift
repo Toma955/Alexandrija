@@ -354,7 +354,7 @@ struct TopologyViewElementView: View {
     var isTestMode: Bool = false // Test mode - fiksira elemente i mijenja izgled
     
     // Helper za provjeru je li novi pin blizu drugog pina
-    private func isNearTargetPin(_ location: CGPoint) -> (component: NetworkComponent, pinPosition: CGPoint)? {
+    private func isNearTargetPin(_ location: CGPoint) -> (component: NetworkComponent, pinPosition: CGPoint, pinPoint: ConnectionPoint)? {
         guard let dragging = topologyViewElement.draggingConnection else { return nil }
         
         if let targetComponent = ComponentPositionManager.findComponent(
@@ -366,7 +366,7 @@ struct TopologyViewElementView: View {
             let targetCenter = ComponentPositionManager.getAbsolutePosition(for: targetComponent, in: geometry)
             if let connectionPoint = ConnectionPointDetector.detect(at: location, componentCenter: targetCenter) {
                 let pinPosition = ConnectionPointDetector.position(for: connectionPoint, componentCenter: targetCenter)
-                return (targetComponent, pinPosition)
+                return (targetComponent, pinPosition, connectionPoint)
             }
         }
         return nil
@@ -394,7 +394,9 @@ struct TopologyViewElementView: View {
                                 from: dragging.fromPoint,
                                 to: target.pinPosition,
                                 type: .wired,
-                                isTestMode: isTestMode
+                                isTestMode: isTestMode,
+                                fromPin: dragging.fromConnectionPoint,
+                                toPin: target.pinPoint
                             )
                         } else {
                             // Siva vidljiva linija od originalnog pina do kruga koji prati miš
@@ -402,7 +404,9 @@ struct TopologyViewElementView: View {
                                 from: dragging.fromPoint,
                                 to: dragging.toPoint,
                                 type: .wired,
-                                isTestMode: isTestMode
+                                isTestMode: isTestMode,
+                                fromPin: dragging.fromConnectionPoint,
+                                toPin: nil
                             )
                     
                     // Novi krug koji prati miš - stvoren na poziciji pina, sada prati miš
