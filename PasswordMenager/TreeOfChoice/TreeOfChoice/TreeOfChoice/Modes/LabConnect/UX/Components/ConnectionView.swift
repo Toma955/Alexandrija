@@ -14,6 +14,11 @@ struct ConnectionView: View {
     var isTestMode: Bool = false // Test mode - narančasta boja konekcija
     let onDelete: ((NetworkConnection) -> Void)?
     
+    // Provjeri da li je konekcija neispravna (između servera i client komponenti)
+    private var isInvalidConnection: Bool {
+        ConnectionRuleValidator.isInvalidConnection(connection, in: topology)
+    }
+    
     var body: some View {
         Group {
             if let from = topology.components.first(where: { $0.id == connection.fromComponentId }),
@@ -36,6 +41,7 @@ struct ConnectionView: View {
                         to: toPoint,
                         type: connection.connectionType,
                         isTestMode: isTestMode,
+                        isInvalid: isInvalidConnection,
                         fromPin: connection.fromConnectionPoint,
                         toPin: connection.toConnectionPoint
                     )
@@ -45,7 +51,8 @@ struct ConnectionView: View {
                         from: fromEdgePoint,
                         to: fromPoint,
                         type: connection.connectionType,
-                        isTestMode: isTestMode
+                        isTestMode: isTestMode,
+                        isInvalid: isInvalidConnection
                     )
                     
                     // Mala linija od pina do ruba kvadrata (to) - uvijek ravna
@@ -53,7 +60,8 @@ struct ConnectionView: View {
                         from: toPoint,
                         to: toEdgePoint,
                         type: connection.connectionType,
-                        isTestMode: isTestMode
+                        isTestMode: isTestMode,
+                        isInvalid: isInvalidConnection
                     )
                 }
                 .zIndex(1)

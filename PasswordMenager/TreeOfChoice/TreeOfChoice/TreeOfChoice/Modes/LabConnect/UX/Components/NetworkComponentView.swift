@@ -87,7 +87,7 @@ struct NetworkComponentView: View {
     private var borderOverlay: some View {
         if isTestMode {
             Circle()
-                .stroke(Color(red: 1.0, green: 0.36, blue: 0.0), lineWidth: 2)
+                .stroke(isInInvalidConnection ? Color.red : Color(red: 1.0, green: 0.36, blue: 0.0), lineWidth: 2)
         } else {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(computedBorderColor, lineWidth: 2)
@@ -177,8 +177,18 @@ struct NetworkComponentView: View {
         return nil
     }
     
-    // Izračunaj boju ikone - siva ako nije spojena, narančasta u test modu, inače normalna
+    // Provjeri da li je komponenta dio neispravne konekcije
+    private var isInInvalidConnection: Bool {
+        guard let topology = topology else { return false }
+        return ConnectionRuleValidator.isComponentInInvalidConnection(component, in: topology)
+    }
+    
+    // Izračunaj boju ikone - siva ako nije spojena, narančasta u test modu, crvena ako je neispravna u test modu, inače normalna
     private var computedIconColor: Color {
+        // Ako je test mode i komponenta je dio neispravne konekcije, koristi crvenu boju
+        if isTestMode && isInInvalidConnection {
+            return Color.red
+        }
         // Ako je test mode, koristi narančastu boju
         if isTestMode {
             return Color(red: 1.0, green: 0.36, blue: 0.0)
@@ -203,8 +213,12 @@ struct NetworkComponentView: View {
         return ComponentColorHelper.color(for: component.componentType)
     }
     
-    // Izračunaj boju okvira - siva ako nije spojena, narančasta u test modu, inače normalna
+    // Izračunaj boju okvira - siva ako nije spojena, narančasta u test modu, crvena ako je neispravna u test modu, inače normalna
     private var computedBorderColor: Color {
+        // Ako je test mode i komponenta je dio neispravne konekcije, koristi crvenu boju
+        if isTestMode && isInInvalidConnection {
+            return Color.red
+        }
         // Ako je test mode, koristi narančastu boju
         if isTestMode {
             return Color(red: 1.0, green: 0.36, blue: 0.0)

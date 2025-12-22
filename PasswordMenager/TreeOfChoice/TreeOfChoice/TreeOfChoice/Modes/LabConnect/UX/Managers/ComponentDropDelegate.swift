@@ -74,8 +74,22 @@ struct ComponentDropDelegate: DropDelegate {
                         newComponent.areaHeight = 120
                     }
                     
-                    topology.components.append(newComponent)
-                    topology.objectWillChange.send()
+                    // Provjeri constraints - ne dozvoli dodavanje u Client zone
+                    // zoneWidth i padding su već definirane gore
+                    let isInClientAZone = dropX <= padding + zoneWidth
+                    let isInClientBZone = dropX >= geometry.size.width - padding - zoneWidth
+                    
+                    if isInClientAZone || isInClientBZone {
+                        // Ne dozvoli dodavanje u Client zone
+                        print("⚠️ Komponenta se ne može dodati u Client zone")
+                        return
+                    }
+                    
+                    // Koristi centraliziranu metodu za dodavanje komponente
+                    let success = topology.addComponent(newComponent, allowInClientZones: false)
+                    if !success {
+                        print("⚠️ Neuspješno dodavanje komponente na topologiju")
+                    }
                 }
             }
         }

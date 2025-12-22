@@ -54,10 +54,10 @@ class TopologyViewElement: ObservableObject {
         // Initialize Client Area Element with clients (koristi ClientZone objekte)
         self.clientAreaElement = ClientAreaElement(clientA: clientA, clientB: clientB)
         
-        // Add clients to topology
-        topology.clientA = clientA
-        topology.clientB = clientB
-        topology.components.append(contentsOf: [clientA, clientB])
+        // Add clients to topology - koristi addComponent metodu s allowInClientZones: true
+        // jer su Client A i Client B namijenjeni za svoje zone
+        _ = topology.addComponent(clientA, allowInClientZones: true)
+        _ = topology.addComponent(clientB, allowInClientZones: true)
         
         // Sync ClientZone components with topology
         clientAreaElement.clientAZone.updateComponent(clientA)
