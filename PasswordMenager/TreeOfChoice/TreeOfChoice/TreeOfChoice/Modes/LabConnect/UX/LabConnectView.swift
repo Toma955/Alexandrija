@@ -99,9 +99,15 @@ struct LabConnectView: View {
     private var mainContentView: some View {
         ZStack {
             HStack(spacing: 0) {
-                // Empty left panel (keeps original layout for topology positioning)
-                Color.clear
-                    .frame(width: 300)
+                // Left panel s ClientSidesView
+                GeometryReader { panelGeometry in
+                    ClientSidesView(
+                        geometry: panelGeometry,
+                        lineYPosition: lineYPosition,
+                        isLeftSide: true
+                    )
+                }
+                .frame(width: 300)
                 
                 Divider()
                     .background(Color.white.opacity(0.2))
@@ -117,9 +123,15 @@ struct LabConnectView: View {
                 Divider()
                     .background(Color.white.opacity(0.2))
                 
-                // Empty right panel (keeps original layout for topology positioning)
-                rightPanel
-                    .frame(width: 300)
+                // Right panel s ClientSidesView
+                GeometryReader { panelGeometry in
+                    ClientSidesView(
+                        geometry: panelGeometry,
+                        lineYPosition: lineYPosition,
+                        isLeftSide: false
+                    )
+                }
+                .frame(width: 300)
             }
             
             // Session Starter in top left corner (overlay) - iste dimenzije kao actionButtonsPanel
@@ -154,6 +166,7 @@ struct LabConnectView: View {
                         .offset(y: adjustedY)
                 }
             }
+            
         }
     }
     

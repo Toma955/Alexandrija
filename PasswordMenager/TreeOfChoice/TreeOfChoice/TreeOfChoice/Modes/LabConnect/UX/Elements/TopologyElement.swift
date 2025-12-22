@@ -110,10 +110,6 @@ struct TopologyElementView: View {
                 .frame(width: geometry.size.width)
                 .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.5)
             
-            // A and B sides (background only)
-            ClientSidesView(geometry: geometry)
-                .allowsHitTesting(false)
-            
             // Network components layer
             networkComponentsLayer
             

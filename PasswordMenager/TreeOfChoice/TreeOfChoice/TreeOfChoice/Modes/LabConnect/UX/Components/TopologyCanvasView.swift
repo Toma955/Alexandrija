@@ -33,10 +33,6 @@ struct TopologyCanvasView: View {
                     .frame(width: geometry.size.width)
                     .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.5)
                 
-                // A and B sides (background only)
-                ClientSidesView(geometry: geometry)
-                    .allowsHitTesting(false)
-                
                 // Network components layer
                 networkComponentsLayer(geometry: geometry)
                 
@@ -168,8 +164,8 @@ struct TopologyCanvasView: View {
                     topology: topology,
                     simulation: simulation,
                     geometry: geometry,
-                    x: 65,
-                    y: geometry.size.height - 80,
+                    x: 5 + (285 / 2), // 5px od ruba + polovica širine (285px / 2 = 142.5px) = 147.5px
+                    y: 20 + (285 / 2), // 20px od gornjeg elementa + polovica visine (285px / 2 = 142.5px) = 162.5px
                     connectingFrom: connectingFrom,
                     hoveredPoint: hoveredConnectionPoint?.component.id == clientA.id ? hoveredConnectionPoint?.point : nil,
                     onTypeChange: { changeClientType($0, to: $1) },
@@ -185,8 +181,8 @@ struct TopologyCanvasView: View {
                     topology: topology,
                     simulation: simulation,
                     geometry: geometry,
-                    x: geometry.size.width - 65,
-                    y: geometry.size.height - 80,
+                    x: (geometry.size.width - 300) + 10 + (285 / 2), // 10px od bijele linije + polovica širine = width - 300 + 10 + 142.5
+                    y: 20 + (285 / 2), // 20px od gornjeg elementa + polovica visine = 162.5px
                     connectingFrom: connectingFrom,
                     hoveredPoint: hoveredConnectionPoint?.component.id == clientB.id ? hoveredConnectionPoint?.point : nil,
                     onTypeChange: { changeClientType($0, to: $1) },

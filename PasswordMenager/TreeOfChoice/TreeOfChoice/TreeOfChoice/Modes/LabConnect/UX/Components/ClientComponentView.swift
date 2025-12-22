@@ -35,7 +35,7 @@ struct ClientComponentView: View {
         let componentCenter = CGPoint(x: x, y: y)
         
         return NetworkComponentView(component: component, topology: topology, iconColor: iconColor, hoveredPoint: hoveredPoint)
-            .frame(width: 90, height: 90)
+            .frame(width: 285, height: 285) // Povećano sa 90x90 na 285x285px
             .contentShape(Rectangle())
             .position(x: x, y: y)
             .zIndex(10) // Ensure it's on top
@@ -43,8 +43,8 @@ struct ClientComponentView: View {
                 DragGesture(minimumDistance: 1)
                     .onChanged { value in
                         // Check if starting from connection point
-                        // Component frame je 90x90, centar je na 45,45
-                        let componentFrameCenter = CGPoint(x: 45, y: 45)
+                        // Component frame je 285x285, centar je na 142.5,142.5
+                        let componentFrameCenter = CGPoint(x: 142.5, y: 142.5)
                         let startLocation = CGPoint(
                             x: x + (value.startLocation.x - componentFrameCenter.x),
                             y: y + (value.startLocation.y - componentFrameCenter.y)
