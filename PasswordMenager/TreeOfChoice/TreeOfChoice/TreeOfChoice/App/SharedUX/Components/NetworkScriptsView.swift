@@ -61,6 +61,8 @@ struct NetworkScriptsView: View {
                     .background(accentOrange)
                     .cornerRadius(8)
             }
+            .buttonStyle(.plain)
+            .focusable(false)
             
             Button(action: {
                 if let script = selectedScript {
@@ -75,6 +77,8 @@ struct NetworkScriptsView: View {
                     .background(accentOrange)
                     .cornerRadius(8)
             }
+            .buttonStyle(.plain)
+            .focusable(false)
             .disabled(selectedScript == nil)
             .opacity(selectedScript == nil ? 0.5 : 1.0)
             
@@ -89,6 +93,8 @@ struct NetworkScriptsView: View {
                     .background(accentOrange)
                     .cornerRadius(8)
             }
+            .buttonStyle(.plain)
+            .focusable(false)
             
             Spacer()
             
@@ -127,6 +133,8 @@ struct NetworkScriptsView: View {
                     .background(accentOrange)
                     .cornerRadius(12)
             }
+            .buttonStyle(.plain)
+            .focusable(false)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

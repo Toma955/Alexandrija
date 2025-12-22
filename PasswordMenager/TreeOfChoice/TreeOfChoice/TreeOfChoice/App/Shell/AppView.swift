@@ -71,66 +71,102 @@ struct AppView: View {
                     .buttonStyle(.plain)
                 }
 
-                // 5 komponenti (4 moda + Tree Library)
+                // 7 komponenti (4 moda + Tree Library + Proces + Info)
                 HStack(spacing: 20) {
                     ModeCard(
                         title: localization.text("mode.labConnect.title"),
                         description: localization.text("mode.labConnect.description"),
-                        buttonTitle: localization.text("mode.open"),
+                        buttonTitle: "Lab-Connection",
+                        iconName: "Lab",
                         accentColor: accentOrange,
                         action: {
                             selectedMode = .labConnect
                         }
                     )
+                    .frame(maxWidth: .infinity)
 
                     ModeCard(
                         title: localization.text("mode.labSecurity.title"),
                         description: localization.text("mode.labSecurity.description"),
-                        buttonTitle: localization.text("mode.open"),
+                        buttonTitle: "Lab-Security",
+                        iconName: "SecurityLab",
                         accentColor: accentOrange,
                         action: {
                             selectedMode = .labSecurity
                         }
                     )
+                    .frame(maxWidth: .infinity)
 
                     ModeCard(
                         title: localization.text("mode.realConnect.title"),
                         description: localization.text("mode.realConnect.description"),
-                        buttonTitle: localization.text("mode.open"),
+                        buttonTitle: "Real-Connection",
+                        iconName: "Conection",
                         accentColor: accentOrange,
                         action: {
                             selectedMode = .realConnect
                         }
                     )
+                    .frame(maxWidth: .infinity)
 
                     ModeCard(
                         title: localization.text("mode.realSecurity.title"),
                         description: localization.text("mode.realSecurity.description"),
-                        buttonTitle: localization.text("mode.open"),
+                        buttonTitle: "Real-Security",
+                        iconName: "SecurityLab",
                         accentColor: accentOrange,
                         action: {
                             selectedMode = .realSecurity
                         }
                     )
+                    .frame(maxWidth: .infinity)
                     
                     ModeCard(
                         title: localization.text("treeLibrary.title"),
                         description: localization.text("treeLibrary.homeDescription"),
-                        buttonTitle: localization.text("mode.open"),
+                        buttonTitle: "Tree Library",
+                        iconName: "decision",
                         accentColor: accentOrange,
                         action: {
                             selectedMode = .treeLibrary
                         }
                     )
+                    .frame(maxWidth: .infinity)
+                    
+                    ModeCard(
+                        title: "Watchmen",
+                        description: "",
+                        buttonTitle: "Watchmen",
+                        iconName: "Watchtower_icon",
+                        accentColor: accentOrange,
+                        action: {
+                            // TODO: Implement Watchmen action
+                        }
+                    )
+                    .frame(maxWidth: .infinity)
+                    
+                    ModeCard(
+                        title: "Info",
+                        description: "",
+                        buttonTitle: "Info",
+                        iconName: "info",
+                        accentColor: accentOrange,
+                        action: {
+                            // TODO: Implement Info action
+                        }
+                    )
+                    .frame(maxWidth: .infinity)
                 }
 
                 // panel za datoteke
                 FilesPanel()
                     .environmentObject(localization)
+                    .frame(maxWidth: .infinity)
 
                 Spacer()
             }
-            .padding(32)
+            .padding(.horizontal, 48)
+            .padding(.vertical, 32)
         }
         .frame(minWidth: 1200, minHeight: 800)
         .onAppear {

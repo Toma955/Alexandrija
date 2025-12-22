@@ -154,6 +154,8 @@ struct PythonScriptView: View {
                     .background(accentOrange)
                     .cornerRadius(12)
             }
+            .buttonStyle(.plain)
+            .focusable(false)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

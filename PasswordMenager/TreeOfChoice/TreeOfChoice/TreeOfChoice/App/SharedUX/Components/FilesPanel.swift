@@ -36,6 +36,10 @@ struct FilesPanel: View {
         .frame(maxWidth: .infinity, minHeight: 400)
         .background(Color.black.opacity(0.8))
         .cornerRadius(20)
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(Color.clear, lineWidth: 0)
+        )
         .sheet(isPresented: $showPythonConverter) {
             PythonScriptView()
                 .environmentObject(localization)
@@ -64,6 +68,8 @@ struct FilesPanel: View {
                     .background(Color(red: 1.0, green: 0.36, blue: 0.0))
                     .cornerRadius(8)
             }
+            .buttonStyle(.plain)
+            .focusable(false)
         }
         .padding(20)
         .background(Color.black.opacity(0.6))
@@ -121,6 +127,7 @@ struct TabButton: View {
             .background(isSelected ? Color.white.opacity(0.2) : Color.clear)
         }
         .buttonStyle(.plain)
+        .focusable(false)
     }
 }
 
