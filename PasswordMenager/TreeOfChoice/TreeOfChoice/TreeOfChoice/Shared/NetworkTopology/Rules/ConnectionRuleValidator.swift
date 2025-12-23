@@ -7,138 +7,126 @@
 
 import Foundation
 
-/// Validator koji provjerava pravila konekcija prije dodavanja konekcije
+/// Validator za provjeru valjanosti konekcija između mrežnih komponenti
 struct ConnectionRuleValidator {
     
-    /// Rezultat validacije
-    enum ValidationResult {
-        case allowed
-        case denied(reason: String)
-    }
-    
-    /// Provjerava da li je konekcija dozvoljena između dvije komponente
+    /// Provjerava da li je komponenta dio neispravne konekcije
     /// - Parameters:
-    ///   - fromComponent: Komponenta od koje se spaja
-    ///   - toComponent: Komponenta na koju se spaja
-    ///   - topology: Topologija za provjeru putanje (opcionalno)
-    /// - Returns: ValidationResult - je li dozvoljeno ili razlog zašto nije
-    static func validateConnection(from fromComponent: NetworkComponent, 
-                                   to toComponent: NetworkComponent,
-                                   in topology: NetworkTopology? = nil) -> ValidationResult {
+    ///   - component: Komponenta za provjeru
+    ///   - topology: Topologija koja sadrži sve komponente i konekcije
+    /// - Returns: `true` ako komponenta ima neispravne konekcije, `false` inače
+    static func isComponentInInvalidConnection(_ component: NetworkComponent, in topology: NetworkTopology) -> Bool {
+        let connections = topology.getConnections(for: component.id)
         
-        // Provjeri da li se komponente ne pokušavaju spojiti same sa sobom
-        if fromComponent.id == toComponent.id {
-            return .denied(reason: "Komponenta se ne može spojiti sama sa sobom")
-        }
-        
-        // Provjeri da li se DNS i DHCP serveri pokušavaju direktno spojiti
-        if (fromComponent.componentType == .dnsServer && toComponent.componentType == .dhcpServer) ||
-           (fromComponent.componentType == .dhcpServer && toComponent.componentType == .dnsServer) {
-            return .denied(reason: "DNS i DHCP serveri se ne mogu direktno spojiti")
-        }
-        
-        // Provjeri pravila konekcija
-        let (allowed, reason) = ConnectionRules.isConnectionAllowed(
-            from: fromComponent.componentType,
-            to: toComponent.componentType
-        )
-        
-        if !allowed {
-            let errorMessage = reason ?? "Konekcija između \(fromComponent.componentType.displayName) i \(toComponent.componentType.displayName) nije dozvoljena"
-            return .denied(reason: errorMessage)
-        }
-        
-        // Konekcija je dozvoljena (ne blokiramo direktne konekcije između servera i client komponenti)
-        // Umjesto toga, one će biti označene kao neispravne u test modu (crvena boja)
-        return .allowed
-    }
-    
-    /// Provjerava da li je konekcija dozvoljena između dvije komponente (po tipovima)
-    /// - Parameters:
-    ///   - fromType: Tip komponente od koje se spaja
-    ///   - toType: Tip komponente na koju se spaja
-    /// - Returns: ValidationResult - je li dozvoljeno ili razlog zašto nije
-    static func validateConnection(from fromType: NetworkComponent.ComponentType, 
-                                   to toType: NetworkComponent.ComponentType) -> ValidationResult {
-        
-        // Provjeri pravila konekcija
-        let (allowed, reason) = ConnectionRules.isConnectionAllowed(
-            from: fromType,
-            to: toType
-        )
-        
-        if allowed {
-            return .allowed
-        } else {
-            let errorMessage = reason ?? "Konekcija između \(fromType.displayName) i \(toType.displayName) nije dozvoljena"
-            return .denied(reason: errorMessage)
-        }
-    }
-    
-    /// Provjerava da li je konekcija dozvoljena između dvije komponente (po ID-ovima)
-    /// - Parameters:
-    ///   - topology: Topologija koja sadrži komponente
-    ///   - fromId: ID komponente od koje se spaja
-    ///   - toId: ID komponente na koju se spaja
-    /// - Returns: ValidationResult - je li dozvoljeno ili razlog zašto nije
-    static func validateConnection(in topology: NetworkTopology, 
-                                   from fromId: UUID, 
-                                   to toId: UUID) -> ValidationResult {
-        
-        // Pronađi komponente
-        guard let fromComponent = topology.components.first(where: { $0.id == fromId }) else {
-            return .denied(reason: "Komponenta s ID-om \(fromId) ne postoji na topologiji")
-        }
-        
-        guard let toComponent = topology.components.first(where: { $0.id == toId }) else {
-            return .denied(reason: "Komponenta s ID-om \(toId) ne postoji na topologiji")
-        }
-        
-        return validateConnection(from: fromComponent, to: toComponent, in: topology)
-    }
-    
-    /// Provjerava da li je konekcija neispravna (između servera i client komponenti bez routera/access pointa, ili server-NAS)
-    /// - Parameters:
-    ///   - connection: Konekcija za provjeru
-    ///   - topology: Topologija koja sadrži komponente
-    /// - Returns: true ako je konekcija neispravna
-    static func isInvalidConnection(_ connection: NetworkConnection, in topology: NetworkTopology) -> Bool {
-        guard let fromComponent = topology.components.first(where: { $0.id == connection.fromComponentId }),
-              let toComponent = topology.components.first(where: { $0.id == connection.toComponentId }) else {
-            return false
-        }
-        
-        let serverTypes: Set<NetworkComponent.ComponentType> = [.server, .webServer, .databaseServer, .mailServer, .fileServer, .dnsServer, .dhcpServer, .businessServer, .nilterniusServer]
-        let clientTypes: Set<NetworkComponent.ComponentType> = [.mobile, .desktop, .tablet, .laptop]
-        
-        let fromIsServer = serverTypes.contains(fromComponent.componentType)
-        let toIsServer = serverTypes.contains(toComponent.componentType)
-        let fromIsClient = clientTypes.contains(fromComponent.componentType)
-        let toIsClient = clientTypes.contains(toComponent.componentType)
-        
-        // Provjeri da li je direktna konekcija između servera i client komponente
-        if (fromIsServer && toIsClient) || (fromIsClient && toIsServer) {
-            return true
-        }
-        
-        // Provjeri da li je direktna konekcija između servera i NAS-a
-        if (fromIsServer && toComponent.componentType == .nas) || (fromComponent.componentType == .nas && toIsServer) {
-            return true
+        for connection in connections {
+            // Pronađi drugu komponentu u konekciji
+            let otherComponentId = connection.fromComponentId == component.id 
+                ? connection.toComponentId 
+                : connection.fromComponentId
+            
+            guard let otherComponent = topology.components.first(where: { $0.id == otherComponentId }) else {
+                // Konekcija vodi do nepostojeće komponente - neispravno
+                return true
+            }
+            
+            // Provjeri valjanost konekcije između ove dvije komponente
+            if !isValidConnection(from: component, to: otherComponent) {
+                return true
+            }
         }
         
         return false
     }
     
-    /// Provjerava da li je komponenta dio neispravne konekcije
+    /// Provjerava da li je konekcija između dvije komponente valjana
     /// - Parameters:
-    ///   - component: Komponenta za provjeru
-    ///   - topology: Topologija koja sadrži komponente
-    /// - Returns: true ako je komponenta dio neispravne konekcije
-    static func isComponentInInvalidConnection(_ component: NetworkComponent, in topology: NetworkTopology) -> Bool {
-        let connections = topology.getConnections(for: component.id)
-        return connections.contains { connection in
-            isInvalidConnection(connection, in: topology)
+    ///   - from: Izvorna komponenta
+    ///   - to: Odredišna komponenta
+    /// - Returns: `true` ako je konekcija valjana, `false` inače
+    static func isValidConnection(from: NetworkComponent, to: NetworkComponent) -> Bool {
+        // Osnovna pravila valjanosti konekcija
+        
+        // 1. Komponenta ne može biti povezana sama sa sobom
+        if from.id == to.id {
+            return false
         }
+        
+        // 2. Area komponente mogu biti povezane samo s određenim tipovima
+        let areaTypes: [NetworkComponent.ComponentType] = [.userArea, .businessArea, .businessPrivateArea, .nilterniusArea]
+        if areaTypes.contains(from.componentType) {
+            // Area komponente mogu biti povezane s bilo kojom komponentom unutar svoje zone
+            // Za sada dopuštamo sve konekcije
+            return true
+        }
+        
+        if areaTypes.contains(to.componentType) {
+            // Isto pravilo vrijedi i obrnuto
+            return true
+        }
+        
+        // 3. Client komponente (Client A i Client B) mogu biti povezane s bilo kojom komponentom
+        if from.isClientA == true || from.isClientB == true || to.isClientA == true || to.isClientB == true {
+            return true
+        }
+        
+        // 4. ISP (Satellite Earth Station) može biti povezan samo s određenim tipovima
+        if from.componentType == .isp {
+            // ISP može biti povezan s: satellite gateway, cell tower, router, modem
+            let allowedTypes: [NetworkComponent.ComponentType] = [
+                .satelliteGateway, .cellTower, .router, .modem, .signalTower
+            ]
+            return allowedTypes.contains(to.componentType)
+        }
+        
+        if to.componentType == .isp {
+            let allowedTypes: [NetworkComponent.ComponentType] = [
+                .satelliteGateway, .cellTower, .router, .modem, .signalTower
+            ]
+            return allowedTypes.contains(from.componentType)
+        }
+        
+        // 5. Satellite Gateway može biti povezan s: ISP, router, modem, cell tower
+        if from.componentType == .satelliteGateway {
+            let allowedTypes: [NetworkComponent.ComponentType] = [
+                .isp, .router, .modem, .cellTower, .signalTower, .user
+            ]
+            return allowedTypes.contains(to.componentType)
+        }
+        
+        if to.componentType == .satelliteGateway {
+            let allowedTypes: [NetworkComponent.ComponentType] = [
+                .isp, .router, .modem, .cellTower, .signalTower, .user
+            ]
+            return allowedTypes.contains(from.componentType)
+        }
+        
+        // 6. User (Satellite) može biti povezan s: satellite gateway, cell tower, signal tower
+        if from.componentType == .user {
+            let allowedTypes: [NetworkComponent.ComponentType] = [
+                .satelliteGateway, .cellTower, .signalTower
+            ]
+            return allowedTypes.contains(to.componentType)
+        }
+        
+        if to.componentType == .user {
+            let allowedTypes: [NetworkComponent.ComponentType] = [
+                .satelliteGateway, .cellTower, .signalTower
+            ]
+            return allowedTypes.contains(from.componentType)
+        }
+        
+        // 7. Default: sve ostale konekcije su valjane
+        // Ovdje možete dodati dodatna pravila prema potrebi
+        return true
+    }
+    
+    /// Provjerava da li se konekcija može stvoriti između dvije komponente
+    /// - Parameters:
+    ///   - from: Izvorna komponenta
+    ///   - to: Odredišna komponenta
+    /// - Returns: `true` ako se konekcija može stvoriti, `false` inače
+    static func canCreateConnection(from: NetworkComponent, to: NetworkComponent) -> Bool {
+        return isValidConnection(from: from, to: to)
     }
 }
 

@@ -12,7 +12,6 @@ struct ConnectionLine: View {
     let to: CGPoint
     let type: NetworkConnection.ConnectionType
     var isTestMode: Bool = false // Test mode - narančasta boja
-    var isInvalid: Bool = false // Neispravna konekcija (između servera i client komponenti) - crvena u test modu
     var fromPin: ConnectionPoint? = nil // Pin s kojeg linija počinje
     var toPin: ConnectionPoint? = nil // Pin na koji linija ide
     
@@ -214,13 +213,10 @@ struct ConnectionLine: View {
         path.addLine(to: to)
     }
     
-    // All connections are gray initially, narančasta u test modu, crvena ako je neispravna u test modu
+    // All connections are gray initially, narančasta u test modu
     private var lineColor: Color {
-        if isTestMode && isInvalid {
-            return Color.red // Crvena boja za neispravne konekcije u test modu
-        }
         if isTestMode {
-            return Color(red: 1.0, green: 0.36, blue: 0.0) // Narančasta boja u test modu
+            return Color(red: 1.0, green: 0.36, blue: 0.0) // Narančasta boja
         }
         return Color.gray
     }

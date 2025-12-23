@@ -7,7 +7,9 @@
 
 import SwiftUI
 
-// ConnectionPoint enum je sada u Shared/NetworkTopology/Models/ConnectionPoint.swift
+enum ConnectionPoint: String, Codable {
+    case top, bottom, left, right
+}
 
 struct ConnectionPointDetector {
     static func detect(at location: CGPoint, componentCenter: CGPoint) -> ConnectionPoint? {

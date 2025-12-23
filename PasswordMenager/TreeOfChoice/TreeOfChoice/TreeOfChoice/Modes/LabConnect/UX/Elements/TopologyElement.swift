@@ -24,14 +24,13 @@ class TopologyElement: ObservableObject {
     }
     
     func addComponent(_ component: NetworkComponent) {
-        let success = topology.addComponent(component, allowInClientZones: false)
-        if !success {
-            print("⚠️ TopologyElement: Neuspješno dodavanje komponente")
-        }
+        topology.components.append(component)
+        topology.objectWillChange.send()
     }
     
     func removeComponent(_ component: NetworkComponent) {
-        topology.removeComponent(component)
+        topology.components.removeAll { $0.id == component.id }
+        topology.objectWillChange.send()
     }
     
     func addConnection(from: UUID, to: UUID, fromConnectionPoint: ConnectionPoint? = nil, toConnectionPoint: ConnectionPoint? = nil) {
