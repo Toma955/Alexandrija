@@ -28,11 +28,12 @@ enum ClientZoneType {
 }
 
 /// Element koji predstavlja Client Zone - područje klijenta s elementom za izbor uređaja, tekstom, bojom i nazivom
+/// Nasljeđuje AreaTopologyElement - automatski dobiva pinove i area područje
 /// Slijedi objektno orijentirane principe
 /// Koordinate se određuju prema grid koordinatama (x, y indeksi), ne prema pikselima
-class ClientZone: ObservableObject {
-    // Properties
-    @Published var component: NetworkComponent
+class ClientZone: AreaTopologyElement {
+    // MARK: - Client Zone Specific Properties
+    
     @Published var zoneType: ClientZoneType
     @Published var width: CGFloat
     @Published var isVisible: Bool
@@ -43,7 +44,8 @@ class ClientZone: ObservableObject {
     @Published var bottomLeftGrid: CGPoint // Grid koordinata donjeg lijevog kuta
     @Published var bottomRightGrid: CGPoint // Grid koordinata donjeg desnog kuta
     
-    // Computed properties
+    // MARK: - Computed Properties
+    
     var name: String {
         zoneType.name
     }
@@ -59,6 +61,8 @@ class ClientZone: ObservableObject {
     var borderColor: Color {
         color
     }
+    
+    // MARK: - Initialization
     
     init(component: NetworkComponent? = nil, zoneType: ClientZoneType, width: CGFloat = 90, 
          topLeftGrid: CGPoint? = nil, topRightGrid: CGPoint? = nil, 
@@ -103,10 +107,12 @@ class ClientZone: ObservableObject {
         }
         self.bottomRightGrid = defaultBottomRight
         
+        // Kreiraj ili koristi postojeći component
+        let finalComponent: NetworkComponent
         if let component = component {
-            self.component = component
+            finalComponent = component
         } else {
-            self.component = NetworkComponent(
+            finalComponent = NetworkComponent(
                 componentType: .laptop,
                 position: .zero,
                 name: zoneType.name,
@@ -114,9 +120,36 @@ class ClientZone: ObservableObject {
                 isClientB: zoneType == .clientB
             )
         }
+        
+        // Inicijaliziraj AreaTopologyElement s private visibility
+        super.init(
+            component: finalComponent,
+            visibility: .private, // Client zones su private (u zonama)
+            areaWidth: width,
+            areaHeight: CGFloat((defaultBottomLeft.y - defaultTopLeft.y) * GridSnapHelper.gridSpacing)
+        )
     }
     
-    // MARK: - Methods
+    // MARK: - Override Methods
+    
+    override func getStatus() -> String {
+        "\(zoneType.name) Zone"
+    }
+    
+    override func getMetadata() -> [String: Any] {
+        var metadata = super.getMetadata()
+        metadata["zoneType"] = zoneType.name
+        metadata["width"] = width
+        metadata["gridCoordinates"] = [
+            "topLeft": ["x": topLeftGrid.x, "y": topLeftGrid.y],
+            "topRight": ["x": topRightGrid.x, "y": topRightGrid.y],
+            "bottomLeft": ["x": bottomLeftGrid.x, "y": bottomLeftGrid.y],
+            "bottomRight": ["x": bottomRightGrid.x, "y": bottomRightGrid.y]
+        ]
+        return metadata
+    }
+    
+    // MARK: - Client Zone Specific Methods
     
     func changeDeviceType(to type: NetworkComponent.ComponentType) {
         guard type.canBeClient else { return }
@@ -129,6 +162,12 @@ class ClientZone: ObservableObject {
     func updateComponent(_ newComponent: NetworkComponent) {
         component = newComponent
         objectWillChange.send()
+    }
+    
+    // MARK: - Override AreaElement
+    
+    override var areaColor: Color {
+        color // Koristi zone color umjesto component custom color
     }
 }
 

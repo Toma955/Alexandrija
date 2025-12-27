@@ -50,7 +50,9 @@ struct ComponentView: View {
     var body: some View {
         let absoluteX = calculateAbsoluteX()
         let absoluteY = calculateAbsoluteY()
-        let iconColor = determineIconColor(absoluteX: absoluteX)
+        // Ne koristi determineIconColor() - BaseComponentTopologyView koristi logiku iz BaseTopologyElement
+        // iconColor se ne prosljeđuje jer BaseComponentTopologyView ignorira taj parametar
+        let iconColor: Color? = nil // Ne prosljeđuj iconColor - koristi se logika iz BaseTopologyElement
         let isAreaComponent = component.componentType == .userArea ||
                              component.componentType == .businessArea ||
                              component.componentType == .businessPrivateArea ||
@@ -153,10 +155,16 @@ struct ComponentView: View {
                 iconColor: iconColor,
                 hoveredPoint: hoveredPoint,
                 onIconTap: {
-                    // Klik na ikonu - pozovi onTap handler
+                    // Klik na ikonu - ovisno o mode-u:
+                    // Edit mode: započinje drag (već se rješava gesture-om)
+                    // Settings mode: otvori postavke
+                    // Za sada pozovi onTap handler (backward compatibility)
                     onTap(component)
                 },
-                isTestMode: isTestMode
+                onPinClick: onPinClick,
+                onConnectionDragStart: onConnectionDragStart,
+                isTestMode: isTestMode,
+                isEditMode: true // ComponentView je uvijek u edit mode-u (drag & drop)
             )
             .position(
                 // Koristi fiksnu poziciju - tijekom resize-a koristi početnu poziciju, inače normalnu
