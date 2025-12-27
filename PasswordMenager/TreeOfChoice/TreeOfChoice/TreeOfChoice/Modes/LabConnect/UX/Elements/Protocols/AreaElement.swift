@@ -34,8 +34,8 @@ extension AreaElement {
     var hasArea: Bool { true }
     
     var areaColor: Color {
-        // Default narančasta boja
-        Color(red: 1.0, green: 0.36, blue: 0.0)
+        // Default siva boja (kao i ikone)
+        Color.gray
     }
     
     func getAreaBounds(componentCenter: CGPoint) -> CGRect {

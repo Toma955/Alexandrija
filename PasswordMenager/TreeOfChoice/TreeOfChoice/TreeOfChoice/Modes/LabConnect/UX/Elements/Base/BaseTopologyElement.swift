@@ -13,7 +13,8 @@ import SwiftUI
 /// - Edit/Settings mode
 /// - Display info
 /// - Visibility management
-class BaseTopologyElement: ObservableObject, ConnectableElement {
+/// - Settings menu (ElementSettingsMenu)
+class BaseTopologyElement: ObservableObject, ConnectableElement, ElementSettingsMenuProtocol {
     // MARK: - Core Properties
     
     @Published var component: NetworkComponent
@@ -26,6 +27,14 @@ class BaseTopologyElement: ObservableObject, ConnectableElement {
     
     @Published var editMode: Bool = true
     @Published var settingsMode: Bool = false
+    
+    // MARK: - Settings Menu
+    
+    /// Settings menu instance - svi elementi imaju menu za postavke
+    /// Kreira se na zahtjev (lazy) da se osigura da ima najnovije podatke
+    var settingsMenu: ElementSettingsMenu {
+        ElementSettingsMenu(component: component, topology: topology)
+    }
     
     // MARK: - Initialization
     
@@ -122,6 +131,16 @@ class BaseTopologyElement: ObservableObject, ConnectableElement {
         // Default: postavi flag da se otvori settings dialog
         // View će otvoriti settings sheet
         settingsMode = true
+    }
+    
+    // MARK: - ElementSettingsMenuProtocol Implementation
+    
+    /// Prikazuje menu/postavke za element
+    /// Override u subklasama za specifične postavke
+    func showSettingsMenu() -> AnyView {
+        // Kreiraj novi settings menu s najnovijim podacima
+        // settingsMenu je computed property koji kreira novi menu svaki put
+        return settingsMenu.showSettingsMenu()
     }
     
     // MARK: - ConnectableElement Implementation

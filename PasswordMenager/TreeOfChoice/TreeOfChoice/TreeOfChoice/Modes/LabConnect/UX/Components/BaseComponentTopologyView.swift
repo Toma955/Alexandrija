@@ -19,6 +19,9 @@ struct BaseComponentTopologyView: View {
     var pinColor: Color? = nil
     var hoveredPoint: ConnectionPoint? = nil
     var onIconTap: (() -> Void)? = nil
+    var onIconDrag: ((NetworkComponent, CGPoint) -> Void)? = nil // Drag handler za Edit mode
+    var onIconDragUpdate: ((NetworkComponent, CGPoint) -> Void)? = nil // Drag update handler
+    var onIconDragEnd: ((NetworkComponent, CGPoint) -> Void)? = nil // Drag end handler
     var onPinClick: ((NetworkComponent, ConnectionPoint, CGPoint) -> Void)? = nil
     var onConnectionDragStart: ((NetworkComponent, CGPoint, CGPoint) -> Void)? = nil
     var isTestMode: Bool = false
@@ -27,6 +30,15 @@ struct BaseComponentTopologyView: View {
     
     // Kreiraj TopologyElement za ovu komponentu
     @StateObject private var topologyElement: BaseTopologyElement
+    
+    // State za drag ikone u Edit mode-u
+    @State private var isDraggingIcon: Bool = false
+    @State private var iconDragOffset: CGSize = .zero
+    @State private var iconDragStartLocation: CGPoint = .zero
+    @State private var dragStartTime: Date? = nil // Vrijeme početka drag-a za detekciju tap-a
+    
+    // State za settings menu
+    @State private var showSettingsMenu: Bool = false
     
     private let componentSize: CGFloat = 70
     private let connectionPointDistance: CGFloat = 45
@@ -39,6 +51,9 @@ struct BaseComponentTopologyView: View {
         pinColor: Color? = nil,
         hoveredPoint: ConnectionPoint? = nil,
         onIconTap: (() -> Void)? = nil,
+        onIconDrag: ((NetworkComponent, CGPoint) -> Void)? = nil,
+        onIconDragUpdate: ((NetworkComponent, CGPoint) -> Void)? = nil,
+        onIconDragEnd: ((NetworkComponent, CGPoint) -> Void)? = nil,
         onPinClick: ((NetworkComponent, ConnectionPoint, CGPoint) -> Void)? = nil,
         onConnectionDragStart: ((NetworkComponent, CGPoint, CGPoint) -> Void)? = nil,
         isTestMode: Bool = false,
@@ -51,6 +66,9 @@ struct BaseComponentTopologyView: View {
         self.pinColor = pinColor
         self.hoveredPoint = hoveredPoint
         self.onIconTap = onIconTap
+        self.onIconDrag = onIconDrag
+        self.onIconDragUpdate = onIconDragUpdate
+        self.onIconDragEnd = onIconDragEnd
         self.onPinClick = onPinClick
         self.onConnectionDragStart = onConnectionDragStart
         self.isTestMode = isTestMode
@@ -75,11 +93,11 @@ struct BaseComponentTopologyView: View {
             // Config mode: narančasti krug
             backgroundShape
             
-            // Component icon
-            componentIcon
-                .onTapGesture {
-                    handleIconTap()
-                }
+            // Component icon - različito ponašanje ovisno o mode-u
+            // Button u sredini kvadrata s ikonom unutar njega
+            componentIconWithGesture
+                .frame(width: componentSize, height: componentSize)
+                .contentShape(Rectangle()) // Omogući hit testing na cijelom Button-u
             
             // Connection points (pins) - samo ako nije test mode
             // SVI elementi imaju pinove (ConnectableElement)
@@ -106,6 +124,15 @@ struct BaseComponentTopologyView: View {
         .onAppear {
             // Ažuriraj topology reference kada se view pojavi
             topologyElement.topology = topology
+        }
+        .sheet(isPresented: $showSettingsMenu) {
+            // Prikaži settings menu iz BaseTopologyElement
+            // Osiguraj da se component prosljeđuje kao @ObservedObject za binding
+            SettingsMenuView(
+                component: component, // Koristi direktno component iz BaseComponentTopologyView
+                topology: topology,
+                customView: topologyElement.settingsMenu.customSettingsView()
+            )
         }
     }
     
@@ -141,17 +168,76 @@ struct BaseComponentTopologyView: View {
         }
     }
     
-    // MARK: - Icon Tap Handler
+    // MARK: - Icon with Gesture
     
-    private func handleIconTap() {
-        // Ako postoji custom handler, koristi ga
-        if let customTap = onIconTap {
-            customTap()
-            return
+    /// Ikona s gesture-om - različito ponašanje ovisno o mode-u
+    private var componentIconWithGesture: some View {
+        Group {
+            // Provjeri da li je Config mode (isTestMode = true ili settingsMode = true)
+            let isConfigMode = isTestMode || topologyElement.settingsMode
+            
+            if !isConfigMode {
+                // Edit mode: Button s drag gesture na ikoni za pomicanje komponente
+                // U Edit mode-u, drag pomiče komponentu, tap ne radi ništa
+                Button(action: {}) {
+                    componentIcon
+                        .frame(maxWidth: .infinity, maxHeight: .infinity) // Centriraj ikonu u Button-u
+                }
+                .buttonStyle(PlainButtonStyle()) // Ukloni default button styling
+                .frame(width: componentSize, height: componentSize) // Button je istih dimenzija kao kvadrat
+                .highPriorityGesture(
+                    // highPriorityGesture daje DragGesture prioritet nad Button action
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            if !isDraggingIcon {
+                                isDraggingIcon = true
+                                iconDragStartLocation = value.startLocation
+                                
+                                // Pozovi onIconDrag za početak drag-a
+                                if let onIconDrag = onIconDrag {
+                                    onIconDrag(component, value.startLocation)
+                                }
+                            }
+                            
+                            // Ažuriraj offset (relativno na BaseComponentTopologyView)
+                            iconDragOffset = CGSize(
+                                width: value.location.x - value.startLocation.x,
+                                height: value.location.y - value.startLocation.y
+                            )
+                            
+                            // Pozovi onIconDragUpdate za kontinuirano ažuriranje
+                            if let onIconDragUpdate = onIconDragUpdate {
+                                onIconDragUpdate(component, value.location)
+                            }
+                        }
+                        .onEnded { value in
+                            isDraggingIcon = false
+                            
+                            // Pozovi onIconDragEnd za završetak drag-a
+                            if let onIconDragEnd = onIconDragEnd {
+                                onIconDragEnd(component, value.location)
+                            }
+                            
+                            // Reset offset
+                            iconDragOffset = .zero
+                        }
+                )
+            } else {
+                // Config mode: Button s tap action za otvaranje settings izbornika (menu)
+                // Ovo vrijedi za SVE elemente, uključujući Area elemente
+                Button(action: {
+                    // U Config mode-u, klik na Button otvara menu/postavke
+                    topologyElement.openSettings()
+                    showSettingsMenu = true
+                }) {
+                    componentIcon
+                        .frame(maxWidth: .infinity, maxHeight: .infinity) // Centriraj ikonu u Button-u
+                }
+                .buttonStyle(PlainButtonStyle()) // Ukloni default button styling
+                .frame(width: componentSize, height: componentSize) // Button je istih dimenzija kao kvadrat
+                .contentShape(Rectangle()) // Osiguraj da je cijeli button klikabilan
+            }
         }
-        
-        // Inače koristi TopologyElement logiku
-        topologyElement.handleIconClick()
     }
     
     // MARK: - Component Icon
@@ -167,6 +253,25 @@ struct BaseComponentTopologyView: View {
             finalIconColor = Color(red: 1.0, green: 0.36, blue: 0.0) // Narančasta u Config mode-u
         } else {
             finalIconColor = topologyElement.getIconColor()
+        }
+        
+        // Provjeri da li treba koristiti selectedDeviceType za User Area ili Gateway za ostale Area elemente
+        if component.componentType == .userArea, let deviceType = component.selectedDeviceType {
+            // Za User Area, koristi ikonu odabranog device type-a
+            return Group {
+                Image(systemName: ComponentIconHelper.icon(for: deviceType))
+                    .font(.system(size: 32, weight: .medium))
+                    .foregroundColor(finalIconColor)
+            }
+        } else if component.componentType == .businessArea || 
+                  component.componentType == .businessPrivateArea || 
+                  component.componentType == .nilterniusArea {
+            // Za ostale Area elemente, koristi Gateway ikonu
+            return Group {
+                Image(systemName: "antenna.radiowaves.left.and.right")
+                    .font(.system(size: 32, weight: .medium))
+                    .foregroundColor(finalIconColor)
+            }
         }
         
         return Group {
@@ -209,13 +314,16 @@ struct BaseComponentTopologyView: View {
         // UVIJEK koristi logiku iz BaseTopologyElement za boju pinova (siva po defaultu)
         let pinColorToUse = pinColor ?? topologyElement.getIconColor()
         
+        // KLJUČNO: Prikaži pin samo ako je miš blizu (isHovered == true)
+        // Inače pin nije vidljiv (opacity 0)
         return Circle()
-            .fill(isHovered ? pinColorToUse : pinColorToUse.opacity(0.6))
+            .fill(isHovered ? pinColorToUse : Color.clear)
             .frame(width: connectionPointRadius * 2, height: connectionPointRadius * 2)
             .overlay(
                 Circle()
                     .stroke(isHovered ? Color.white : Color.clear, lineWidth: 2)
             )
+            .opacity(isHovered ? 1.0 : 0.0) // Sakrij pin ako nije hovered
             .position(x: position.x, y: position.y)
     }
 }

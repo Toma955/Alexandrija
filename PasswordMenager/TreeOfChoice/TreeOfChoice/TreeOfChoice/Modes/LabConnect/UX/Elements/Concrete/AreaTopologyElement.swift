@@ -45,7 +45,8 @@ class AreaTopologyElement: BaseTopologyElement, AreaElement {
     var hasArea: Bool { true }
     
     var areaColor: Color {
-        component.customColor ?? Color(red: 1.0, green: 0.36, blue: 0.0)
+        // Default: siva boja (kao i ikone)
+        component.customColor ?? Color.gray
     }
     
     func getAreaBounds(componentCenter: CGPoint) -> CGRect {

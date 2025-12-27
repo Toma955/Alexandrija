@@ -19,6 +19,9 @@ struct NetworkComponentView: View {
     var pinColor: Color? = nil
     var hoveredPoint: ConnectionPoint? = nil
     var onIconTap: (() -> Void)? = nil
+    var onIconDrag: ((NetworkComponent, CGPoint) -> Void)? = nil
+    var onIconDragUpdate: ((NetworkComponent, CGPoint) -> Void)? = nil
+    var onIconDragEnd: ((NetworkComponent, CGPoint) -> Void)? = nil
     var onPinClick: ((NetworkComponent, ConnectionPoint, CGPoint) -> Void)? = nil
     var onConnectionDragStart: ((NetworkComponent, CGPoint, CGPoint) -> Void)? = nil
     var isTestMode: Bool = false
@@ -32,6 +35,9 @@ struct NetworkComponentView: View {
             pinColor: pinColor,
             hoveredPoint: hoveredPoint,
             onIconTap: onIconTap,
+            onIconDrag: onIconDrag,
+            onIconDragUpdate: onIconDragUpdate,
+            onIconDragEnd: onIconDragEnd,
             onPinClick: onPinClick,
             onConnectionDragStart: onConnectionDragStart,
             isTestMode: isTestMode,
