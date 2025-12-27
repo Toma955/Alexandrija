@@ -7,8 +7,8 @@
 
 import SwiftUI
 
-/// Enum za tip klijenta
-enum ClientType {
+/// Enum za tip klijenta zone (stari enum - preimenovan da izbjegne konflikt s novim ClientType)
+enum ClientZoneType {
     case clientA
     case clientB
     
@@ -33,7 +33,7 @@ enum ClientType {
 class ClientZone: ObservableObject {
     // Properties
     @Published var component: NetworkComponent
-    @Published var zoneType: ClientType
+    @Published var zoneType: ClientZoneType
     @Published var width: CGFloat
     @Published var isVisible: Bool
     
@@ -60,7 +60,7 @@ class ClientZone: ObservableObject {
         color
     }
     
-    init(component: NetworkComponent? = nil, zoneType: ClientType, width: CGFloat = 90, 
+    init(component: NetworkComponent? = nil, zoneType: ClientZoneType, width: CGFloat = 90, 
          topLeftGrid: CGPoint? = nil, topRightGrid: CGPoint? = nil, 
          bottomLeftGrid: CGPoint? = nil, bottomRightGrid: CGPoint? = nil) {
         self.zoneType = zoneType
