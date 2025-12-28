@@ -154,14 +154,25 @@ struct LabConnectView: View {
                 let squareWidth = fullGeometry.size.width - 20 // 10px lijevo + 10px desno = 20px ukupno
                 let squareX = fullGeometry.size.width / 2 // Centar ekrana
                 
-                // Donji rub kvadrata je uvijek 10px od dna
-                let bottomEdge = fullGeometry.size.height - 10
+                // Donji rub kvadrata - mora biti iznad narančastog control panela
+                let bottomEdge: CGFloat
+                if !bottomControlPanel.isGameMode && bottomControlPanel.isEditMode {
+                    // U Edit mode-u, donja linija prozora mora biti iznad narančastog control panela
+                    // Control panel ima visinu 60px + padding 20px = 80px, dodajem još malo prostora
+                    bottomEdge = fullGeometry.size.height - 100 // Iznad narančastog control panela
+                } else {
+                    bottomEdge = fullGeometry.size.height - 10 // Normalna pozicija
+                }
                 
-                // Gornji rub kvadrata je 10px ispod bijele linije (ako postoji)
+                // Gornji rub kvadrata - proširi prema gore kada je Edit mode u Track mode-u
                 let topEdge: CGFloat
-                if lineYPosition > 0 {
+                if !bottomControlPanel.isGameMode && bottomControlPanel.isEditMode {
+                    // U Edit mode-u u Track mode-u, proširi skroz do vrha iznad topologije (malo niže)
+                    topEdge = 20 // Malo niže od vrha ekrana, iznad topologije
+                } else if lineYPosition > 0 {
                     let adjustedY = lineYPosition - fullGeometry.frame(in: .global).minY
-                    topEdge = adjustedY + 10 // 10px ispod bijele linije
+                    // Normalna pozicija - 10px ispod bijele linije
+                    topEdge = adjustedY + 10
                 } else {
                     // Ako nema linije, koristi fiksnu visinu
                     topEdge = bottomEdge - 200 // Fiksna visina 200px
@@ -170,25 +181,72 @@ struct LabConnectView: View {
                 let squareHeight = bottomEdge - topEdge
                 let squareY = topEdge + (squareHeight / 2) // Centar kvadrata
                 
-                return ZStack {
-                    // Background
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.2))
-                        .frame(width: squareWidth, height: squareHeight)
-                        .cornerRadius(12)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.gray, lineWidth: 2)
-                        )
-                    
-                    // Bottom Control Panel Content
-                    BottomControlPanelView(bottomControlPanel: bottomControlPanel)
-                        .frame(width: squareWidth, height: squareHeight)
+                // Pozicija narančastog control panela - ispod prozora, blizu dna
+                let controlPanelY: CGFloat
+                if !bottomControlPanel.isGameMode && bottomControlPanel.isEditMode {
+                    // U Edit mode-u, control panel je ispod prozora, blizu dna
+                    controlPanelY = fullGeometry.size.height - 40 // Blizu dna (40px od dna)
+                } else {
+                    // Normalna pozicija - unutar prozora
+                    controlPanelY = fullGeometry.size.height - 40
                 }
-                .position(
-                    x: squareX,
-                    y: squareY
-                )
+                
+                return ZStack {
+                    if !bottomControlPanel.isGameMode && bottomControlPanel.isEditMode {
+                        // Edit mode u Track mode-u - prozor i control panel odvojeno
+                        // Prozor - samo sadržaj (TrackModeView)
+                        ZStack {
+                            // Background
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.2))
+                                .frame(width: squareWidth, height: squareHeight)
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.gray, lineWidth: 2)
+                                )
+                            
+                            // Sadržaj prozora (bez control panela)
+                            TrackModeView()
+                                .id("trackMode")
+                        }
+                        .frame(width: squareWidth, height: squareHeight)
+                        .position(
+                            x: squareX,
+                            y: squareY
+                        )
+                        
+                        // Narančasti control panel - ispod prozora
+                        ControlPanelOnlyView(bottomControlPanel: bottomControlPanel)
+                            .frame(width: squareWidth)
+                            .position(
+                                x: squareX,
+                                y: controlPanelY
+                            )
+                    } else {
+                        // Normalno stanje - control panel unutar prozora
+                        ZStack {
+                            // Background
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.2))
+                                .frame(width: squareWidth, height: squareHeight)
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.gray, lineWidth: 2)
+                                )
+                            
+                            // Bottom Control Panel Content (s view-ovima i control panelom)
+                            BottomControlPanelView(bottomControlPanel: bottomControlPanel)
+                                .frame(width: squareWidth, height: squareHeight)
+                        }
+                        .frame(width: squareWidth, height: squareHeight)
+                        .position(
+                            x: squareX,
+                            y: squareY
+                        )
+                    }
+                }
             }
             
         }
@@ -372,6 +430,264 @@ struct ActionButton: View {
             .cornerRadius(8)
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Control Panel Only View (bez view-ova)
+
+struct ControlPanelOnlyView: View {
+    @ObservedObject var bottomControlPanel: BottomControlPanelElement
+    @State private var isHovered: Bool = false
+    
+    private let accentOrange = Color(red: 1.0, green: 0.36, blue: 0.0)
+    
+    var body: some View {
+        VStack {
+            Spacer()
+            animatedOrangeButton
+                .padding(.bottom, 20)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    private var animatedOrangeButton: some View {
+        ZStack {
+            if !bottomControlPanel.isExpanded {
+                Button(action: {
+                    isHovered = false
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                        bottomControlPanel.toggleExpanded()
+                    }
+                }) {
+                    Capsule()
+                        .fill(accentOrange)
+                        .frame(
+                            width: isHovered ? 70 : 60,
+                            height: isHovered ? 12 : 10
+                        )
+                }
+                .buttonStyle(.plain)
+                .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isHovered)
+            } else {
+                RoundedRectangle(cornerRadius: 30)
+                    .fill(accentOrange)
+                    .frame(width: 320, height: 60)
+            }
+            
+            if bottomControlPanel.isExpanded {
+                expandedControls
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+            }
+        }
+        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: bottomControlPanel.isExpanded)
+        .onContinuousHover { phase in
+            if !bottomControlPanel.isExpanded {
+                switch phase {
+                case .active:
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isHovered = true
+                    }
+                case .ended:
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isHovered = false
+                    }
+                }
+            } else {
+                isHovered = false
+            }
+        }
+    }
+    
+    private var expandedControls: some View {
+        HStack(spacing: 16) {
+            // Toggle switch
+            ZStack {
+                Capsule()
+                    .fill(accentOrange)
+                    .frame(width: 42, height: 36)
+                
+                HStack(spacing: 8) {
+                    // Game mode
+                    ZStack {
+                        if bottomControlPanel.isGameMode {
+                            Circle()
+                                .fill(Color.black)
+                                .frame(width: 38, height: 38)
+                                .zIndex(0)
+                        }
+                        
+                        if let nsImage = loadIcon(named: "gamepad") {
+                            Color.white
+                                .mask(
+                                    Image(nsImage: nsImage)
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 58, height: 58)
+                                )
+                                .frame(width: 58, height: 58)
+                                .zIndex(1)
+                        } else {
+                            Image(systemName: "gamecontroller.fill")
+                                .font(.title)
+                                .foregroundColor(.white)
+                                .zIndex(1)
+                        }
+                    }
+                    .frame(width: 30, height: 40)
+                    .offset(x: -20)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if !bottomControlPanel.isGameMode {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                bottomControlPanel.isGameMode = true
+                            }
+                        }
+                    }
+                    
+                    // Track mode
+                    ZStack {
+                        if !bottomControlPanel.isGameMode {
+                            Circle()
+                                .fill(Color.black)
+                                .frame(width: 38, height: 38)
+                                .zIndex(0)
+                        }
+                        
+                        if let nsImage = loadIcon(named: "Tracks") {
+                            Color.white
+                                .mask(
+                                    Image(nsImage: nsImage)
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 28, height: 28)
+                                )
+                                .frame(width: 28, height: 28)
+                                .zIndex(1)
+                        } else {
+                            Image(systemName: "map.fill")
+                                .font(.caption2)
+                                .foregroundColor(.white)
+                                .zIndex(1)
+                        }
+                    }
+                    .frame(width: 20, height: 30)
+                    .padding(.trailing, 4)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if bottomControlPanel.isGameMode {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                bottomControlPanel.isGameMode = false
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Edit/Close button - u Edit mode-u prikaži Close, inače Edit
+            if !bottomControlPanel.isGameMode && bottomControlPanel.isEditMode {
+                // Close button u Edit mode-u
+                Button(action: {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                        bottomControlPanel.isEditMode = false
+                    }
+                }) {
+                    Image(systemName: "xmark")
+                        .font(.title3)
+                        .foregroundColor(.white)
+                        .frame(width: 30, height: 30)
+                        .background(Color.black)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+            } else {
+                // Edit button u normalnom stanju
+                Button(action: {
+                    if !bottomControlPanel.isGameMode {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                            bottomControlPanel.isEditMode.toggle()
+                        }
+                    }
+                }) {
+                    Image(systemName: "pencil")
+                        .font(.title3)
+                        .foregroundColor(.white)
+                        .frame(width: 30, height: 30)
+                        .background(Color.black)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+            }
+            
+            // Collapse button
+            Button(action: {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    bottomControlPanel.toggleExpanded()
+                }
+            }) {
+                Image(systemName: "chevron.down")
+                    .font(.title3)
+                    .foregroundColor(.white)
+                    .frame(width: 30, height: 30)
+                    .background(Color.black)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            
+            // Play/Save button - u Edit mode-u prikaži Save, inače Play
+            if !bottomControlPanel.isGameMode && bottomControlPanel.isEditMode {
+                // Save button u Edit mode-u
+                Button(action: {
+                    // TODO: Implement Save action
+                }) {
+                    Image(systemName: "square.and.arrow.down")
+                        .font(.title3)
+                        .foregroundColor(.white)
+                        .frame(width: 30, height: 30)
+                        .background(Color.black)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+            } else {
+                // Play by step button u normalnom stanju
+                Button(action: {}) {
+                    Image(systemName: "play.fill")
+                        .font(.title3)
+                        .foregroundColor(.white)
+                        .frame(width: 30, height: 30)
+                        .background(Color.black)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+            }
+            
+            // One step
+            Button(action: {}) {
+                Image(systemName: "forward.fill")
+                    .font(.title3)
+                    .foregroundColor(.white)
+                    .frame(width: 30, height: 30)
+                    .background(Color.black)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+    
+    private func loadIcon(named name: String) -> NSImage? {
+        if let imageURL = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "Shared/UX/Icons") {
+            if let image = NSImage(contentsOf: imageURL) {
+                return image
+            }
+        }
+        if let imageURL = Bundle.main.url(forResource: name, withExtension: "png") {
+            return NSImage(contentsOf: imageURL)
+        }
+        if let assetImage = NSImage(named: name) {
+            return assetImage
+        }
+        return nil
     }
 }
 

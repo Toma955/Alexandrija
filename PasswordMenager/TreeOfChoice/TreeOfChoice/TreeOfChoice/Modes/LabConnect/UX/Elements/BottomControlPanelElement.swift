@@ -47,6 +47,7 @@ struct SemicircleShape: Shape {
 class BottomControlPanelElement: ObservableObject {
     @Published var isExpanded: Bool = false // Stanje animiranog botuna (collapsed/expanded)
     @Published var isGameMode: Bool = true // Game mode (true) ili Track mode (false)
+    @Published var isEditMode: Bool = false // Edit mode (samo za Track mode)
     @Published var toggle1: Bool = false
     @Published var toggle2: Bool = false
     @Published var toggle3: Bool = false
@@ -258,7 +259,12 @@ struct BottomControlPanelView: View {
             // 4 Botuna - svi 30x30
             // Button 1 - Edit (crni krug, veća ikona)
             Button(action: {
-                // TODO: Implement Edit action
+                // Edit mode samo u Track mode-u
+                if !bottomControlPanel.isGameMode {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                        bottomControlPanel.isEditMode.toggle()
+                    }
+                }
             }) {
                 Image(systemName: "pencil")
                     .font(.title3)
