@@ -10,24 +10,6 @@ import AppKit
 import Foundation
 
 struct ComponentIconHelper {
-    /// Vraća ikonu za komponentu, uzimajući u obzir selectedDeviceType za User Area i Gateway za ostale Area elemente
-    static func icon(for component: NetworkComponent) -> String {
-        // Za User Area, ako postoji selectedDeviceType, koristi ikonu tog device type-a
-        if component.componentType == .userArea, let deviceType = component.selectedDeviceType {
-            return icon(for: deviceType)
-        }
-        
-        // Za ostale Area elemente (Business Area, Business Private Area, Nilternius Area), koristi Gateway ikonu
-        if component.componentType == .businessArea || 
-           component.componentType == .businessPrivateArea || 
-           component.componentType == .nilterniusArea {
-            return "antenna.radiowaves.left.and.right" // Gateway ikona
-        }
-        
-        // Inače koristi standardnu ikonu za tip komponente
-        return icon(for: component.componentType)
-    }
-    
     static func icon(for type: NetworkComponent.ComponentType) -> String {
         switch type {
         case .mobile: return "iphone"

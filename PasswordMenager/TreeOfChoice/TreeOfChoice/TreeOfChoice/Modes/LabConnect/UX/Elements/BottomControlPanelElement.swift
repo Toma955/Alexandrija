@@ -72,12 +72,32 @@ struct BottomControlPanelView: View {
     
     var body: some View {
         // Animirani narančasti botun na dnu koji se pretvara u veći kvadrat s kontrolama
-        VStack {
-            Spacer()
-            animatedOrangeButton
-                .padding(.bottom, 20)
+        ZStack {
+            // Mode view-ovi - iza control panela (uvijek vidljivi)
+            // Prikaži odgovarajući view ovisno o isGameMode
+            Group {
+                if bottomControlPanel.isGameMode {
+                    GameModeView()
+                        .id("gameMode") // ID za pravilnu animaciju
+                } else {
+                    TrackModeView()
+                        .id("trackMode") // ID za pravilnu animaciju
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .zIndex(1) // Ispod control panela
+            .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            
+            // Control panel na dnu
+            VStack {
+                Spacer()
+                animatedOrangeButton
+                    .padding(.bottom, 20)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .zIndex(10) // Iznad mode view-ova
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: bottomControlPanel.isGameMode)
     }
     
     // MARK: - Animated Orange Button

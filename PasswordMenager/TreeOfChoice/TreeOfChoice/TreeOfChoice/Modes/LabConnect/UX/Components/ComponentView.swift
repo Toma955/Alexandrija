@@ -25,8 +25,6 @@ struct ComponentView: View {
     @State private var dragOffset: CGSize = .zero
     @State private var isDragging = false
     @State private var dragStartPosition: CGPoint = .zero
-    @State private var dragStartAbsoluteX: CGFloat = 0 // Fiksna početna X pozicija za drag
-    @State private var dragStartAbsoluteY: CGFloat = 0 // Fiksna početna Y pozicija za drag
     @State private var draggingConnection: Bool = false
     @State private var pinClickStarted: Bool = false // Provjera da se pinClick pozove samo jednom
     @State private var isResizingArea: Bool = false
@@ -50,12 +48,9 @@ struct ComponentView: View {
     }
     
     var body: some View {
-        // Koristi fiksnu početnu poziciju tijekom drag-a, inače računaj iz component.position
-        let absoluteX = isDragging ? dragStartAbsoluteX : calculateAbsoluteX()
-        let absoluteY = isDragging ? dragStartAbsoluteY : calculateAbsoluteY()
-        // Ne koristi determineIconColor() - BaseComponentTopologyView koristi logiku iz BaseTopologyElement
-        // iconColor se ne prosljeđuje jer BaseComponentTopologyView ignorira taj parametar
-        let iconColor: Color? = nil // Ne prosljeđuj iconColor - koristi se logika iz BaseTopologyElement
+        let absoluteX = calculateAbsoluteX()
+        let absoluteY = calculateAbsoluteY()
+        let iconColor = determineIconColor(absoluteX: absoluteX)
         let isAreaComponent = component.componentType == .userArea ||
                              component.componentType == .businessArea ||
                              component.componentType == .businessPrivateArea ||
@@ -66,26 +61,20 @@ struct ComponentView: View {
             if isAreaComponent {
                 let areaWidth = component.areaWidth ?? 120
                 let areaHeight = component.areaHeight ?? 120
-                // Default: siva boja (kao i ikone)
-                let areaColor = component.customColor ?? Color.gray
+                let areaColor = component.customColor ?? Color(red: 1.0, green: 0.36, blue: 0.0)
                 
-                // Koristi fiksnu poziciju tijekom drag-a za area center
-                let areaAbsoluteX = isDragging ? dragStartAbsoluteX : absoluteX
-                let areaAbsoluteY = isDragging ? dragStartAbsoluteY : absoluteY
                 let areaCenter = calculateAreaCenter(
-                    absoluteX: areaAbsoluteX + (isDragging ? dragOffset.width : 0),
-                    absoluteY: areaAbsoluteY + (isDragging ? dragOffset.height : 0),
+                    absoluteX: absoluteX,
+                    absoluteY: absoluteY,
                     areaWidth: areaWidth,
                     areaHeight: areaHeight
                 )
                 
                 ZStack {
                     // Isprekidani kvadrat - koristi abs() samo za prikaz, ali zadrži originalnu vrijednost u modelu
-                    // KLJUČNO: allowsHitTesting(false) da ne blokira klikove na button-u
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(areaColor, style: StrokeStyle(lineWidth: 2, dash: [5, 5]))
                         .frame(width: abs(areaWidth), height: abs(areaHeight))
-                        .allowsHitTesting(false) // Ne hvataj klikove - button mora biti klikabilan
                     
                     // Strelice na kutovima
                     if isResizingArea, let corner = resizeCorner, let dragPos = draggingHandlePosition {
@@ -146,9 +135,7 @@ struct ComponentView: View {
                         .offset(y: areaHeight / 2 + 25)
                 }
                 .position(x: areaCenter.x, y: areaCenter.y)
-                // KLJUČNO: allowsHitTesting(true) samo za resize handles i text, ne za stroke
-                // Stroke već ima allowsHitTesting(false), tako da button može reagirati
-                .allowsHitTesting(true) // Omogući hit testing za resize handles
+                .allowsHitTesting(true)
                 .onContinuousHover { phase in
                     switch phase {
                     case .active(let location):
@@ -159,7 +146,6 @@ struct ComponentView: View {
                 }
             }
             
-            // KLJUČNO: NetworkComponentView (button) mora biti IZNAD Area kvadrata da može reagirati na klikove
             // Komponenta (crni kvadrat ili krug u test modu) - UVIJEK na fiksnoj poziciji, ne pomiče se tijekom resize-a
             NetworkComponentView(
                 component: component,
@@ -167,151 +153,25 @@ struct ComponentView: View {
                 iconColor: iconColor,
                 hoveredPoint: hoveredPoint,
                 onIconTap: {
-                    // U Config mode-u, klik na ikonu otvara settings izbornik
-                    if isTestMode {
-                        onTap(component) // Otvori ComponentDetailView (settings)
-                    }
+                    // Klik na ikonu - pozovi onTap handler
+                    onTap(component)
                 },
-                onIconDrag: { comp, location in
-                    // U Edit mode-u, drag na ikoni započinje pomicanje komponente
-                    // location je relativna na BaseComponentTopologyView (70x70), centar je na (35, 35)
-                    // Trebamo je pretvoriti u globalne koordinate
-                    
-                    // Spremi fiksnu početnu poziciju komponente (samo jednom)
-                    if !isDragging {
-                        isDragging = true
-                        // Koristi fiksnu početnu poziciju komponente (prije nego što se drag započne)
-                        dragStartAbsoluteX = calculateAbsoluteX()
-                        dragStartAbsoluteY = calculateAbsoluteY()
-                        dragStartPosition = CGPoint(x: dragStartAbsoluteX, y: dragStartAbsoluteY)
-                        
-                        // Pozovi onDragUpdate SAMO JEDNOM na početku drag-a da se prikaže delete button
-                        // Ovo se poziva samo jednom, ne kontinuirano
-                        let globalLocation = CGPoint(
-                            x: dragStartAbsoluteX + (location.x - 35),
-                            y: dragStartAbsoluteY + (location.y - 35)
-                        )
-                        onDragUpdate?(comp, globalLocation)
-                    }
-                    
-                    // Pretvori relativne koordinate u globalne
-                    // BaseComponentTopologyView je pozicioniran na (dragStartAbsoluteX, dragStartAbsoluteY)
-                    // location je relativna na BaseComponentTopologyView, gdje je centar na (35, 35)
-                    let globalLocation = CGPoint(
-                        x: dragStartAbsoluteX + (location.x - 35),
-                        y: dragStartAbsoluteY + (location.y - 35)
-                    )
-                    
-                    // Postavi dragOffset da komponenta prati miš
-                    // dragOffset je razlika između trenutne pozicije miša i početne pozicije komponente
-                    dragOffset = CGSize(
-                        width: globalLocation.x - dragStartAbsoluteX,
-                        height: globalLocation.y - dragStartAbsoluteY
-                    )
-                    
-                    // KLJUČNO: NE pozivaj onDragUpdate tijekom drag-a!
-                    // onDragUpdate poziva handleComponentDragUpdate koji može uzrokovati pozicioniranje
-                    // Pozicioniranje će se aktivirati samo na kraju drag-a u onIconDragEnd
-                },
-                onIconDragUpdate: { comp, location in
-                    // Ažuriraj poziciju tijekom drag-a (kontinuirano)
-                    // location je relativna na BaseComponentTopologyView (70x70), centar je na (35, 35)
-                    // Osiguraj da je drag započeo
-                    guard isDragging else { return }
-                    
-                    // Pretvori relativne koordinate u globalne
-                    let globalLocation = CGPoint(
-                        x: dragStartAbsoluteX + (location.x - 35),
-                        y: dragStartAbsoluteY + (location.y - 35)
-                    )
-                    
-                    // Ažuriraj dragOffset da komponenta prati miš
-                    dragOffset = CGSize(
-                        width: globalLocation.x - dragStartAbsoluteX,
-                        height: globalLocation.y - dragStartAbsoluteY
-                    )
-                    
-                    // KLJUČNO: NE pozivaj onDragUpdate tijekom drag-a!
-                    // onDragUpdate poziva handleComponentDragUpdate koji može uzrokovati pozicioniranje
-                    // Pozicioniranje će se aktivirati samo na kraju drag-a u onIconDragEnd
-                    // Delete button state se ne mora kontinuirano ažurirati - dovoljno je jednom na početku
-                },
-                onIconDragEnd: { comp, location in
-                    // Završi drag i snap-aj na grid
-                    // location je relativna na BaseComponentTopologyView (70x70), centar je na (35, 35)
-                    
-                    // Pretvori relativne koordinate u globalne
-                    let globalLocation = CGPoint(
-                        x: dragStartAbsoluteX + (location.x - 35),
-                        y: dragStartAbsoluteY + (location.y - 35)
-                    )
-                    
-                    // Snap-aj na grid
-                    let snappedLocation = GridSnapHelper.snapToGrid(globalLocation)
-                    
-                    // KLJUČNO: Reset drag state PRIJE poziva onDrag
-                    isDragging = false
-                    dragOffset = .zero
-                    dragStartAbsoluteX = 0
-                    dragStartAbsoluteY = 0
-                    
-                    // Pozovi onDrag NAKON što se isDragging postavi na false
-                    onDrag(comp, snappedLocation)
-                },
-                onPinClick: onPinClick,
-                onConnectionDragStart: onConnectionDragStart,
-                isTestMode: isTestMode,
-                isEditMode: !isTestMode // Edit mode je suprotno od Config mode (isTestMode)
+                isTestMode: isTestMode
             )
             .position(
-                // KLJUČNO: Koristi fiksnu poziciju tijekom drag-a (dragStartAbsoluteX/Y + dragOffset)
-                // Ovo osigurava da se komponenta renderira samo na jednoj poziciji tijekom drag-a
-                // Tijekom resize-a koristi početnu poziciju
-                // Inače koristi normalnu poziciju iz component.position (izračunatu iz calculateAbsoluteX/Y)
-                x: isDragging && !isResizingArea 
-                    ? dragStartAbsoluteX + dragOffset.width 
-                    : (isResizingArea ? resizeStartAbsoluteX : absoluteX),
-                y: isDragging && !isResizingArea 
-                    ? dragStartAbsoluteY + dragOffset.height 
-                    : (isResizingArea ? resizeStartAbsoluteY : absoluteY)
+                // Koristi fiksnu poziciju - tijekom resize-a koristi početnu poziciju, inače normalnu
+                x: (isResizingArea ? resizeStartAbsoluteX : absoluteX) + (isDragging && !isResizingArea ? dragOffset.width : 0),
+                y: (isResizingArea ? resizeStartAbsoluteY : absoluteY) + (isDragging && !isResizingArea ? dragOffset.height : 0)
             )
-            // Osiguraj da se view ažurira kada se dragOffset promijeni
-            .animation(.none, value: dragOffset)
-            // KLJUČNO: Ne mijenjaj .id() tijekom drag-a jer to uzrokuje re-kreaciju view-a i nestajanje
-            // Koristi konstantan ID da se view ne re-kreira
-            .id(component.id.uuidString)
-            .zIndex(100) // KLJUČNO: Button mora biti IZNAD Area kvadrata da može reagirati na klikove
         }
-        .simultaneousGesture(
+        .gesture(
             // JEDAN gesture s minimumDistance: 0 da hvata i klik i drag
             // Onemogući drag u test modu
-            // KLJUČNO: Ne aktiviraj ovaj gesture ako je drag započeo na ikoni (isDragging je true)
-            // U Config mode-u, koristi simultaneousGesture da button može reagirati
             DragGesture(minimumDistance: 0)
                 .onChanged { value in
-                    // Ako je test mode (Config mode), provjeri je li klik na ikoni/button-u
-                    // Ako jest, ne hvataj klik - button će ga obraditi
-                    if isTestMode {
-                        let componentCenter = CGPoint(x: absoluteX, y: absoluteY)
-                        let componentSize: CGFloat = 70
-                        let componentRect = CGRect(
-                            x: componentCenter.x - componentSize / 2,
-                            y: componentCenter.y - componentSize / 2,
-                            width: componentSize,
-                            height: componentSize
-                        )
-                        // Ako je klik na ikoni/button-u u Config mode-u, ne hvataj ga
-                        // Button će ga obraditi i otvoriti settings menu
-                        if componentRect.contains(value.startLocation) {
-                            return
-                        }
-                        // Ako nije klik na ikoni, ne dozvoli drag (za area resize itd.)
-                        return
-                    }
-                    // Ako je drag započeo na ikoni, ne aktiviraj ovaj gesture (za resize i connection points)
-                    guard !isDragging else { return }
-                    // KLJUČNO: Koristi fiksnu poziciju umjesto calculateAbsoluteX/Y() da se ne aktivira pozicioniranje
-                    // Koristi absoluteX i absoluteY iz body property-ja koji već koriste fiksnu poziciju ako je isDragging == true
+                    // Ako je test mode, ne dozvoli drag
+                    guard !isTestMode else { return }
+                    let absoluteY = calculateAbsoluteY()
                     let componentCenter = CGPoint(x: absoluteX, y: absoluteY)
                     
                     // KLJUČNO: value.startLocation i value.location su GLOBALNE koordinate (relativne na parent view/canvas)
@@ -454,27 +314,49 @@ struct ComponentView: View {
                             height: componentSize
                         )
                         
-                        // Provjeri je li klik na ikonu (središnji dio komponente)
-                        // U Edit mode-u, drag se započinje SAMO na ikoni, ne na cijeloj komponenti
-                        let iconSize: CGFloat = 40
-                        let iconRect = CGRect(
-                            x: componentCenter.x - iconSize / 2,
-                            y: componentCenter.y - iconSize / 2,
-                            width: iconSize,
-                            height: iconSize
+                        if componentRect.contains(startLocationGlobal) {
+                        // Normal component drag - track offset
+                        if !isDragging {
+                            isDragging = true
+                            dragStartPosition = CGPoint(x: absoluteX, y: absoluteY)
+                            // Za Area komponente, spremi trenutni areaCenter prije početka drag-a
+                            if isAreaComponent {
+                                let currentAreaCenter = calculateAreaCenter(
+                                    absoluteX: absoluteX,
+                                    absoluteY: absoluteY,
+                                    areaWidth: component.areaWidth ?? 120,
+                                    areaHeight: component.areaHeight ?? 120
+                                )
+                                // Postavi finalAreaCenter i dragStartAreaCenter na trenutni areaCenter
+                                finalAreaCenter = currentAreaCenter
+                                dragStartAreaCenter = currentAreaCenter
+                            } else {
+                                // Za regularne komponente, resetiraj finalAreaCenter
+                                finalAreaCenter = nil
+                                dragStartAreaCenter = nil
+                            }
+                        }
+                        dragOffset = CGSize(
+                            width: value.location.x - value.startLocation.x,
+                            height: value.location.y - value.startLocation.y
                         )
                         
-                        // U Edit mode-u, onemogući drag na cijeloj komponenti
-                        // Drag se započinje SAMO na ikoni (rješava se u BaseComponentTopologyView)
-                        // U Config mode-u, drag je ionako onemogućen
-                        if componentRect.contains(startLocationGlobal) {
-                            // U Edit mode-u, drag se započinje samo na ikoni, ne na cijeloj komponenti
-                            // Ne dozvoli drag na cijeloj komponenti
-                            // (drag na ikoni se rješava u BaseComponentTopologyView)
-                            // Ne izvršavaj drag logiku - samo ikona započinje drag u Edit mode-u
-                            // U Config mode-u, drag je ionako onemogućen
-                        } else {
-                            // Klik izvan komponente - ne radi ništa
+                        // Za Area komponente, ažuriraj finalAreaCenter tijekom drag-a
+                        // finalAreaCenter se pomiče s crnim kvadratom (relativno na početni areaCenter)
+                        if isAreaComponent, let startAreaCenter = dragStartAreaCenter {
+                            // Ažuriraj finalAreaCenter za drag offset (pomakni s crnim kvadratom)
+                            finalAreaCenter = CGPoint(
+                                x: startAreaCenter.x + dragOffset.width,
+                                y: startAreaCenter.y + dragOffset.height
+                            )
+                        }
+                        
+                        // Pass current drag location for delete button detection
+                        let globalLocation = CGPoint(
+                            x: absoluteX + dragOffset.width,
+                                y: absoluteY + dragOffset.height
+                        )
+                        onDragUpdate?(component, globalLocation)
                         }
                     }
                 }
@@ -527,11 +409,50 @@ struct ComponentView: View {
                         pinClickStarted = false
                     }
                     
-                    // KLJUČNO: Ne pozivaj onDrag ovdje ako je drag započeo na ikoni!
-                    // Drag na ikoni se rješava u onIconDragEnd, ne ovdje
-                    // Ovo je samo za drag na cijeloj komponenti (resize, connection points)
-                    // Ako je isDragging == true, to znači da je drag započeo na ikoni i već će se riješiti u onIconDragEnd
-                    // Ne pozivaj onDrag ovdje jer bi to uzrokovalo dupli poziv i pozicioniranje tijekom drag-a
+                    if isDragging {
+                        // Check if dropped over delete button
+                        let deleteButtonY = geometry.size.height - 60
+                        let deleteButtonRadius: CGFloat = 30
+                        let deleteButtonCenterX = geometry.size.width / 2
+                        
+                        let finalDragLocation = CGPoint(
+                            x: dragStartPosition.x + dragOffset.width,
+                            y: dragStartPosition.y + dragOffset.height
+                        )
+                        
+                        let dx = finalDragLocation.x - deleteButtonCenterX
+                        let dy = finalDragLocation.y - deleteButtonY
+                        let distance = sqrt(dx * dx + dy * dy)
+                        
+                        if distance <= deleteButtonRadius {
+                            onDelete?(component)
+                        } else {
+                            // Final position update
+                            if isAreaComponent {
+                                // Za Area komponente, finalAreaCenter je već ažuriran tijekom drag-a
+                                // Samo snap-aj na grid
+                                if let currentFinalAreaCenter = finalAreaCenter {
+                                    finalAreaCenter = GridSnapHelper.snapToGrid(currentFinalAreaCenter)
+                                } else {
+                                    // Ako nema finalAreaCenter (ne bi trebalo biti), koristi finalDragLocation
+                                    finalAreaCenter = GridSnapHelper.snapToGrid(finalDragLocation)
+                                }
+                                
+                                // KLJUČNO: Pozovi onDrag s pozicijom CRNOG KVADRATA (finalDragLocation), NE s area centrom!
+                                // finalAreaCenter se koristi samo za iscrtkani kvadrat, ne za crni kvadrat
+                                let snappedPosition = GridSnapHelper.snapToGrid(finalDragLocation)
+                                onDrag(component, snappedPosition)
+                            } else {
+                                // Grid snap samo za regularne komponente
+                                let snappedPosition = GridSnapHelper.snapToGrid(finalDragLocation)
+                                onDrag(component, snappedPosition)
+                            }
+                        }
+                        
+                        // Reset drag state
+                        isDragging = false
+                        dragOffset = .zero
+                    }
                 }
         )
     }

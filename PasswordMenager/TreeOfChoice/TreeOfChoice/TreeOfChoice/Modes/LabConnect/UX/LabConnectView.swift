@@ -183,7 +183,7 @@ struct LabConnectView: View {
                     
                     // Bottom Control Panel Content
                     BottomControlPanelView(bottomControlPanel: bottomControlPanel)
-                        .frame(width: squareWidth - 40, height: squareHeight - 40)
+                        .frame(width: squareWidth, height: squareHeight)
                 }
                 .position(
                     x: squareX,

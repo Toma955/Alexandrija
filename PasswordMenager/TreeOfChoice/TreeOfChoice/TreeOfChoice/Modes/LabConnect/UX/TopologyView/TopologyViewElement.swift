@@ -85,10 +85,57 @@ class TopologyViewElement: ObservableObject {
     }
     
     func handleComponentDrag(_ component: NetworkComponent, location: CGPoint, geometry: GeometryProxy) {
-        // OVA FUNKCIJA SE NE KORISTI VIŠE
-        // Drag se sada rješava kroz onIconDrag/onIconDragUpdate/onIconDragEnd u ComponentView
-        // component.position se NE mijenja tijekom drag-a, već samo vizualno pomiče pomoću dragOffset
-        // component.position se ažurira samo na kraju drag-a u handleComponentDragEnd
+        // Set dragging state
+        if !isDraggingComponent {
+            isDraggingComponent = true
+            showDeleteButton = true // Show button when drag starts
+        }
+        
+        // Constrain to zones - Client A and B stay centered in their zones, others in middle
+        let constrainedX: CGFloat
+        let constrainedY: CGFloat
+        
+        let zoneWidth: CGFloat = 110
+        let padding: CGFloat = 10
+        let middleAreaStart = padding + zoneWidth
+        
+        if component.isClientA == true {
+            // Client A: centered in zone, in bottom half
+            let bottomHalfStart = geometry.size.height * 0.5
+            let bottomHalfHeight = geometry.size.height * 0.5
+            let verticalPadding: CGFloat = 20
+            constrainedY = bottomHalfStart + (bottomHalfHeight / 2) - verticalPadding
+            constrainedX = padding + (zoneWidth / 2) // Center of Client A zone with padding
+        } else if component.isClientB == true {
+            // Client B: centered in zone, in bottom half
+            let bottomHalfStart = geometry.size.height * 0.5
+            let bottomHalfHeight = geometry.size.height * 0.5
+            let verticalPadding: CGFloat = 20
+            constrainedY = bottomHalfStart + (bottomHalfHeight / 2) - verticalPadding
+            constrainedX = (geometry.size.width - padding - zoneWidth) + (zoneWidth / 2) // Center of Client B zone with padding
+        } else {
+            // Other components stay in middle area - allow free movement during drag
+            // Don't snap during drag, only update position
+            constrainedX = max(middleAreaStart + 45, min(geometry.size.width - padding - zoneWidth - 45, location.x))
+            constrainedY = max(45, min(geometry.size.height - 45, location.y))
+            
+            // Calculate relative position for middle area
+            let newPosition = ComponentPositionManager.calculateRelativePosition(
+                absoluteX: constrainedX,
+                absoluteY: constrainedY,
+                geometry: geometry
+            )
+            
+            component.position = newPosition
+            component.objectWillChange.send()
+            topologyElement.topology.objectWillChange.send()
+            return
+        }
+        
+        // For Client A and B, position is fixed in corners
+        component.position = CGPoint(x: constrainedX, y: constrainedY)
+        component.objectWillChange.send()
+        topologyElement.topology.objectWillChange.send()
     }
     
     func handleComponentDragEnd(_ component: NetworkComponent, finalPosition: CGPoint, geometry: GeometryProxy) {
@@ -135,14 +182,14 @@ class TopologyViewElement: ObservableObject {
                     component.objectWillChange.send()
                     topologyElement.topology.objectWillChange.send()
                 } else {
-                    // Za regularne komponente, snap-aj na grid BEZ constraint-a
-                    // Dopusti slobodno kretanje po cijeloj topologiji
+                    // Za regularne komponente, snap-aj na grid s constraint-ima
                     let snappedLocation = GridSnapHelper.snapToGrid(finalPosition)
+                    let zoneWidth: CGFloat = 110
+                    let padding: CGFloat = 10
+                    let middleAreaStart = padding + zoneWidth
                     
-                    // Samo osiguraj da komponenta ne izlazi izvan granica ekrana
-                    let componentSize: CGFloat = 70
-                    let constrainedX = max(componentSize / 2, min(geometry.size.width - componentSize / 2, snappedLocation.x))
-                    let constrainedY = max(componentSize / 2, min(geometry.size.height - componentSize / 2, snappedLocation.y))
+                    let constrainedX = max(middleAreaStart + 45, min(geometry.size.width - padding - zoneWidth - 45, snappedLocation.x))
+                    let constrainedY = max(45, min(geometry.size.height - 45, snappedLocation.y))
                     
                     let newPosition = ComponentPositionManager.calculateRelativePosition(
                         absoluteX: constrainedX,
@@ -175,10 +222,6 @@ class TopologyViewElement: ObservableObject {
         let distance = sqrt(dx * dx + dy * dy)
         
         isDraggingOverDelete = distance <= deleteButtonRadius
-        
-        // NE mijenjati component.position tijekom drag-a!
-        // Komponenta se pomiče vizualno pomoću dragOffset u ComponentView
-        // component.position će se ažurirati samo na kraju drag-a u handleComponentDragEnd
     }
     
     func deleteComponent(_ component: NetworkComponent) {

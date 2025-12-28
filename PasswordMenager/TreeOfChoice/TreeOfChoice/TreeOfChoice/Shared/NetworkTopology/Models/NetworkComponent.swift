@@ -23,22 +23,6 @@ class NetworkComponent: Identifiable, ObservableObject, Codable {
     var areaWidth: CGFloat? // Širina area kvadrata za area komponente
     var areaHeight: CGFloat? // Visina area kvadrata za area komponente
     
-    // Network Address Properties - svi elementi imaju ova polja
-    @Published var macAddress: String? // MAC adresa (npr. "00:1B:44:11:3A:B7")
-    @Published var privateIPv4: String? // Privatna IPv4 adresa (npr. "192.168.1.100")
-    @Published var privateIPv6: String? // Privatna IPv6 adresa (npr. "fe80::1")
-    @Published var publicIPv4: String? // Javna IPv4 adresa (npr. "203.0.113.1")
-    @Published var publicIPv6: String? // Javna IPv6 adresa (npr. "2001:db8::1")
-    
-    // Connection Type - svi elementi imaju tip konekcije
-    @Published var connectionType: ConnectionType? // Tip konekcije (Private A, Private B, Public, itd.)
-    
-    // Area Color - samo za Area kategorije
-    @Published var selectedAreaColor: AreaColor? // Izabrana boja za Area elemente
-    
-    // Selected Device Type - samo za User Area
-    @Published var selectedDeviceType: ComponentType? // Odabrani device type za User Area (mobile, tablet, desktop, laptop)
-    
     var customColor: Color? {
         get {
             guard let r = customColorRed, let g = customColorGreen, let b = customColorBlue else {
@@ -221,53 +205,6 @@ class NetworkComponent: Identifiable, ObservableObject, Codable {
         case nilternius = "nilternius"
     }
     
-    /// Enum za tip konekcije - svi elementi imaju tip konekcije
-    enum ConnectionType: String, Codable, CaseIterable {
-        case privateA = "Private A"
-        case privateB = "Private B"
-        case `public` = "Public"
-        case privateBusinessA = "Private Business A"
-        case privateBusinessB = "Private Business B"
-        case nilterniusArea = "Nilternius Area"
-        
-        var displayName: String {
-            return self.rawValue
-        }
-    }
-    
-    /// Enum za boje Area elemenata - samo za Area kategorije
-    enum AreaColor: String, Codable, CaseIterable {
-        case yellow = "Yellow"
-        case blue = "Blue"
-        case white = "White"
-        case pink = "Pink"
-        case purple = "Purple"
-        case brown = "Brown"
-        case orange = "Orange"
-        case green = "Green"
-        case red = "Red"
-        case gray = "Gray"
-        
-        var displayName: String {
-            return self.rawValue
-        }
-        
-        var color: Color {
-            switch self {
-            case .yellow: return .yellow
-            case .blue: return .blue
-            case .white: return .white
-            case .pink: return Color(red: 1.0, green: 0.75, blue: 0.8) // Pink
-            case .purple: return .purple
-            case .brown: return Color(red: 0.6, green: 0.4, blue: 0.2) // Brown
-            case .orange: return Color(red: 1.0, green: 0.36, blue: 0.0) // Orange
-            case .green: return .green
-            case .red: return .red
-            case .gray: return .gray
-            }
-        }
-    }
-    
     init(id: UUID = UUID(), componentType: ComponentType, position: CGPoint, name: String, isClientA: Bool? = nil, isClientB: Bool? = nil) {
         self.id = id
         self.componentType = componentType
@@ -280,27 +217,12 @@ class NetworkComponent: Identifiable, ObservableObject, Codable {
         self.customColorBlue = nil
         self.areaWidth = nil
         self.areaHeight = nil
-        self.macAddress = nil
-        self.privateIPv4 = nil
-        self.privateIPv6 = nil
-        self.publicIPv4 = nil
-        self.publicIPv6 = nil
-        self.connectionType = .public // Default: Public
-        self.selectedAreaColor = nil
-        self.selectedDeviceType = nil // Default: nil (koristi se default ikona)
-        
-        // Za ostale Area elemente (Business Area, Business Private Area, Nilternius Area), postavi Gateway kao default ikonu
-        if componentType == .businessArea || componentType == .businessPrivateArea || componentType == .nilterniusArea {
-            // Gateway će se postaviti kroz ComponentIconHelper
-        }
     }
     
     // MARK: - Codable
     
     enum CodingKeys: String, CodingKey {
         case id, componentType, position, name, isClientA, isClientB, customColorRed, customColorGreen, customColorBlue, areaWidth, areaHeight
-        case macAddress, privateIPv4, privateIPv6, publicIPv4, publicIPv6
-        case connectionType, selectedAreaColor, selectedDeviceType
     }
     
     required init(from decoder: Decoder) throws {
@@ -317,14 +239,6 @@ class NetworkComponent: Identifiable, ObservableObject, Codable {
         customColorBlue = try container.decodeIfPresent(Double.self, forKey: .customColorBlue)
         areaWidth = try container.decodeIfPresent(CGFloat.self, forKey: .areaWidth)
         areaHeight = try container.decodeIfPresent(CGFloat.self, forKey: .areaHeight)
-        macAddress = try container.decodeIfPresent(String.self, forKey: .macAddress)
-        privateIPv4 = try container.decodeIfPresent(String.self, forKey: .privateIPv4)
-        privateIPv6 = try container.decodeIfPresent(String.self, forKey: .privateIPv6)
-        publicIPv4 = try container.decodeIfPresent(String.self, forKey: .publicIPv4)
-        publicIPv6 = try container.decodeIfPresent(String.self, forKey: .publicIPv6)
-        connectionType = try container.decodeIfPresent(ConnectionType.self, forKey: .connectionType)
-        selectedAreaColor = try container.decodeIfPresent(AreaColor.self, forKey: .selectedAreaColor)
-        selectedDeviceType = try container.decodeIfPresent(ComponentType.self, forKey: .selectedDeviceType)
     }
     
     func encode(to encoder: Encoder) throws {
@@ -340,14 +254,6 @@ class NetworkComponent: Identifiable, ObservableObject, Codable {
         try container.encodeIfPresent(customColorBlue, forKey: .customColorBlue)
         try container.encodeIfPresent(areaWidth, forKey: .areaWidth)
         try container.encodeIfPresent(areaHeight, forKey: .areaHeight)
-        try container.encodeIfPresent(macAddress, forKey: .macAddress)
-        try container.encodeIfPresent(privateIPv4, forKey: .privateIPv4)
-        try container.encodeIfPresent(privateIPv6, forKey: .privateIPv6)
-        try container.encodeIfPresent(publicIPv4, forKey: .publicIPv4)
-        try container.encodeIfPresent(publicIPv6, forKey: .publicIPv6)
-        try container.encodeIfPresent(connectionType, forKey: .connectionType)
-        try container.encodeIfPresent(selectedAreaColor, forKey: .selectedAreaColor)
-        try container.encodeIfPresent(selectedDeviceType, forKey: .selectedDeviceType)
     }
 }
 
