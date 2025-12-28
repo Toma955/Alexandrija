@@ -149,6 +149,26 @@ struct LabConnectView: View {
                 }
             }
             
+            // Narančasti control panel - izvan GeometryReader-a kada je Edit Mode aktivan
+            // Ovo osigurava da je control panel uvijek vidljiv iznad prozora
+            if !bottomControlPanel.isGameMode && bottomControlPanel.isEditMode {
+                GeometryReader { fullGeometry in
+                    let squareWidth = fullGeometry.size.width - 20
+                    let squareX = fullGeometry.size.width / 2
+                    let controlPanelY = fullGeometry.size.height - 50
+                    
+                    ControlPanelOnlyView(bottomControlPanel: bottomControlPanel)
+                        .frame(width: squareWidth)
+                        .position(
+                            x: squareX,
+                            y: controlPanelY
+                        )
+                        .zIndex(10000) // Vrlo visok zIndex da bude iznad svega
+                        .allowsHitTesting(true) // Osiguraj da je interaktivan
+                }
+                .allowsHitTesting(true)
+            }
+            
             // Veliki kvadrat na dnu - 10px od dna ekrana, 10px od lijevog/desnog ruba, i 10px od vrha bijele linije ako postoji
             GeometryReader { fullGeometry in
                 let squareWidth = fullGeometry.size.width - 20 // 10px lijevo + 10px desno = 20px ukupno
@@ -185,7 +205,8 @@ struct LabConnectView: View {
                 let controlPanelY: CGFloat
                 if !bottomControlPanel.isGameMode && bottomControlPanel.isEditMode {
                     // U Edit mode-u, control panel je ispod prozora, blizu dna
-                    controlPanelY = fullGeometry.size.height - 40 // Blizu dna (40px od dna)
+                    // Panel ima visinu 60px, dodajemo padding 20px = 80px, plus malo prostora
+                    controlPanelY = fullGeometry.size.height - 50 // 50px od dna za bolju vidljivost
                 } else {
                     // Normalna pozicija - unutar prozora
                     controlPanelY = fullGeometry.size.height - 40
@@ -196,33 +217,41 @@ struct LabConnectView: View {
                         // Edit mode u Track mode-u - prozor i control panel odvojeno
                         // Prozor - samo sadržaj (TrackModeView)
                         ZStack {
-                            // Background
-                            Rectangle()
-                                .fill(Color.gray.opacity(0.2))
-                                .frame(width: squareWidth, height: squareHeight)
-                                .cornerRadius(12)
+                            // Background s narančastim borderom - poboljšan izgled
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.black.opacity(0.9))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.gray, lineWidth: 2)
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(
+                                            LinearGradient(
+                                                colors: [
+                                                    Color(red: 1.0, green: 0.36, blue: 0.0),
+                                                    Color(red: 1.0, green: 0.5, blue: 0.2)
+                                                ],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            ),
+                                            lineWidth: 3
+                                        )
                                 )
+                                .shadow(color: Color(red: 1.0, green: 0.36, blue: 0.0).opacity(0.5), radius: 20, x: 0, y: 5)
+                                .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 2)
                             
                             // Sadržaj prozora (bez control panela)
-                            TrackModeView()
+                            TrackModeView(isEditMode: $bottomControlPanel.isEditMode, canvasElement: canvasElement)
                                 .id("trackMode")
+                                .padding(4) // Mali padding da sadržaj ne ide do ruba
                         }
                         .frame(width: squareWidth, height: squareHeight)
                         .position(
                             x: squareX,
                             y: squareY
                         )
-                        
-                        // Narančasti control panel - ispod prozora
-                        ControlPanelOnlyView(bottomControlPanel: bottomControlPanel)
-                            .frame(width: squareWidth)
-                            .position(
-                                x: squareX,
-                                y: controlPanelY
-                            )
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 0.95).combined(with: .opacity),
+                            removal: .scale(scale: 0.95).combined(with: .opacity)
+                        ))
+                        .zIndex(1) // Prozor ima niži zIndex
                     } else {
                         // Normalno stanje - control panel unutar prozora
                         ZStack {
@@ -237,7 +266,7 @@ struct LabConnectView: View {
                                 )
                             
                             // Bottom Control Panel Content (s view-ovima i control panelom)
-                            BottomControlPanelView(bottomControlPanel: bottomControlPanel)
+                            BottomControlPanelView(bottomControlPanel: bottomControlPanel, canvasElement: canvasElement)
                                 .frame(width: squareWidth, height: squareHeight)
                         }
                         .frame(width: squareWidth, height: squareHeight)
@@ -448,11 +477,14 @@ struct ControlPanelOnlyView: View {
                 .padding(.bottom, 20)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .opacity(1.0) // Osiguraj potpunu vidljivost
+        .allowsHitTesting(true) // Osiguraj da je interaktivan
     }
     
     private var animatedOrangeButton: some View {
         ZStack {
-            if !bottomControlPanel.isExpanded {
+            // U Edit Mode-u, panel je uvijek expanded
+            if !bottomControlPanel.isExpanded && !bottomControlPanel.isEditMode {
                 Button(action: {
                     isHovered = false
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
@@ -469,19 +501,25 @@ struct ControlPanelOnlyView: View {
                 .buttonStyle(.plain)
                 .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isHovered)
             } else {
+                // U Edit Mode-u ili kada je expanded, prikaži pozadinu
                 RoundedRectangle(cornerRadius: 30)
                     .fill(accentOrange)
                     .frame(width: 320, height: 60)
+                    .opacity(1.0) // Osiguraj potpunu vidljivost
             }
             
-            if bottomControlPanel.isExpanded {
+            // U Edit Mode-u, uvijek prikaži expanded controls
+            // Također prikaži ako je expanded (normalno stanje)
+            if bottomControlPanel.isEditMode || bottomControlPanel.isExpanded {
                 expandedControls
                     .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    .opacity(1.0) // Osiguraj potpunu vidljivost
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.7), value: bottomControlPanel.isExpanded)
         .onContinuousHover { phase in
-            if !bottomControlPanel.isExpanded {
+            // U Edit Mode-u, ne prikazuj hover efekte
+            if !bottomControlPanel.isExpanded && !bottomControlPanel.isEditMode {
                 switch phase {
                 case .active:
                     withAnimation(.easeInOut(duration: 0.2)) {
@@ -618,20 +656,24 @@ struct ControlPanelOnlyView: View {
                 .buttonStyle(.plain)
             }
             
-            // Collapse button
+            // Collapse button - onemogućen u Edit Mode-u
             Button(action: {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    bottomControlPanel.toggleExpanded()
+                // U Edit Mode-u, ne dozvoli collapse
+                if !bottomControlPanel.isEditMode {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                        bottomControlPanel.toggleExpanded()
+                    }
                 }
             }) {
                 Image(systemName: "chevron.down")
                     .font(.title3)
-                    .foregroundColor(.white)
+                    .foregroundColor(bottomControlPanel.isEditMode ? .white.opacity(0.5) : .white)
                     .frame(width: 30, height: 30)
                     .background(Color.black)
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
+            .disabled(bottomControlPanel.isEditMode) // Onemogući u Edit Mode-u
             
             // Play/Save button - u Edit mode-u prikaži Save, inače Play
             if !bottomControlPanel.isGameMode && bottomControlPanel.isEditMode {

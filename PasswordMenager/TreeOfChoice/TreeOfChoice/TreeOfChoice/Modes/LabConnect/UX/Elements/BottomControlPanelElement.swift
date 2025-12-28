@@ -47,7 +47,15 @@ struct SemicircleShape: Shape {
 class BottomControlPanelElement: ObservableObject {
     @Published var isExpanded: Bool = false // Stanje animiranog botuna (collapsed/expanded)
     @Published var isGameMode: Bool = true // Game mode (true) ili Track mode (false)
-    @Published var isEditMode: Bool = false // Edit mode (samo za Track mode)
+    @Published var isEditMode: Bool = false {
+        didSet {
+            // Kada se aktivira Edit Mode, automatski expandiraj panel
+            if isEditMode {
+                // Postavi odmah bez animacije da se osigura da je vidljiv
+                isExpanded = true
+            }
+        }
+    }
     @Published var toggle1: Bool = false
     @Published var toggle2: Bool = false
     @Published var toggle3: Bool = false
@@ -57,6 +65,10 @@ class BottomControlPanelElement: ObservableObject {
     }
     
     func toggleExpanded() {
+        // U Edit Mode-u, ne dozvoli collapse (osim ako se ne zatvara Edit Mode)
+        if isEditMode {
+            return
+        }
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
             isExpanded.toggle()
         }
@@ -68,6 +80,7 @@ struct BottomControlPanelView: View {
     @ObservedObject var bottomControlPanel: BottomControlPanelElement
     @EnvironmentObject private var localization: LocalizationManager
     @State private var isHovered: Bool = false
+    var canvasElement: CanvasElement? // Optional pristup topologiji
     
     private let accentOrange = Color(red: 1.0, green: 0.36, blue: 0.0)
     
@@ -81,7 +94,7 @@ struct BottomControlPanelView: View {
                     GameModeView()
                         .id("gameMode") // ID za pravilnu animaciju
                 } else {
-                    TrackModeView()
+                    TrackModeView(isEditMode: .constant(false), canvasElement: canvasElement)
                         .id("trackMode") // ID za pravilnu animaciju
                 }
             }
