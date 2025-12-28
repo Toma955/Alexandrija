@@ -7,20 +7,15 @@
 
 import SwiftUI
 
-enum ConnectionPoint: String, Codable {
+enum ConnectionPoint: String, Codable, CaseIterable {
     case top, bottom, left, right
+    case topLeft, topRight, bottomLeft, bottomRight
 }
 
 struct ConnectionPointDetector {
     static func detect(at location: CGPoint, componentCenter: CGPoint) -> ConnectionPoint? {
         let connectionPointDistance: CGFloat = 45
-        let hitRadius: CGFloat = 15 // Radius za prikaz pinova - miš mora biti unutar 15px da se pin prikaže
-        
-        // Izračunaj pozicije svakog connection pointa
-        let topPoint = CGPoint(x: componentCenter.x, y: componentCenter.y - connectionPointDistance)
-        let bottomPoint = CGPoint(x: componentCenter.x, y: componentCenter.y + connectionPointDistance)
-        let leftPoint = CGPoint(x: componentCenter.x - connectionPointDistance, y: componentCenter.y)
-        let rightPoint = CGPoint(x: componentCenter.x + connectionPointDistance, y: componentCenter.y)
+        let hitRadius: CGFloat = 20 // Radius za prikaz pinova - miš mora biti jako blizu (smanjeno sa 25 na 20)
         
         // Izračunaj euklidsku udaljenost od lokacije do svakog connection pointa
         func distance(_ p1: CGPoint, _ p2: CGPoint) -> CGFloat {
@@ -29,18 +24,22 @@ struct ConnectionPointDetector {
             return sqrt(dx * dx + dy * dy)
         }
         
-        let topDistance = distance(location, topPoint)
-        let bottomDistance = distance(location, bottomPoint)
-        let leftDistance = distance(location, leftPoint)
-        let rightDistance = distance(location, rightPoint)
+        // Izračunaj pozicije svih connection pointova (uključujući kutne)
+        let allPoints: [(CGPoint, ConnectionPoint)] = [
+            (CGPoint(x: componentCenter.x, y: componentCenter.y - connectionPointDistance), .top),
+            (CGPoint(x: componentCenter.x, y: componentCenter.y + connectionPointDistance), .bottom),
+            (CGPoint(x: componentCenter.x - connectionPointDistance, y: componentCenter.y), .left),
+            (CGPoint(x: componentCenter.x + connectionPointDistance, y: componentCenter.y), .right),
+            (CGPoint(x: componentCenter.x - connectionPointDistance, y: componentCenter.y - connectionPointDistance), .topLeft),
+            (CGPoint(x: componentCenter.x + connectionPointDistance, y: componentCenter.y - connectionPointDistance), .topRight),
+            (CGPoint(x: componentCenter.x - connectionPointDistance, y: componentCenter.y + connectionPointDistance), .bottomLeft),
+            (CGPoint(x: componentCenter.x + connectionPointDistance, y: componentCenter.y + connectionPointDistance), .bottomRight)
+        ]
         
         // Pronađi najbliži connection point
-        let distances: [(CGFloat, ConnectionPoint)] = [
-            (topDistance, .top),
-            (bottomDistance, .bottom),
-            (leftDistance, .left),
-            (rightDistance, .right)
-        ]
+        let distances: [(CGFloat, ConnectionPoint)] = allPoints.map { (point, connectionPoint) in
+            (distance(location, point), connectionPoint)
+        }
         
         if let closest = distances.min(by: { $0.0 < $1.0 }), closest.0 < hitRadius {
             return closest.1
@@ -60,6 +59,14 @@ struct ConnectionPointDetector {
             return CGPoint(x: componentCenter.x - distance, y: componentCenter.y)
         case .right:
             return CGPoint(x: componentCenter.x + distance, y: componentCenter.y)
+        case .topLeft:
+            return CGPoint(x: componentCenter.x - distance, y: componentCenter.y - distance)
+        case .topRight:
+            return CGPoint(x: componentCenter.x + distance, y: componentCenter.y - distance)
+        case .bottomLeft:
+            return CGPoint(x: componentCenter.x - distance, y: componentCenter.y + distance)
+        case .bottomRight:
+            return CGPoint(x: componentCenter.x + distance, y: componentCenter.y + distance)
         }
     }
     

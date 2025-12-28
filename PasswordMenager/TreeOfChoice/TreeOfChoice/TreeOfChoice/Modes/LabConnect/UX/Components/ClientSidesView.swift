@@ -12,6 +12,8 @@ struct ClientSidesView: View {
     let lineYPosition: CGFloat // Pozicija horizontalne linije ispod topologije
     let isLeftSide: Bool // true za lijevu stranu, false za desnu
     
+    @StateObject private var clientControlPanel = ClientControlPanelElement()
+    
     private let marginFromDivider: CGFloat = 10 // 10px od bijele vertikalne linije
     private let marginFromEdge: CGFloat = 5 // 5px od ruba ekrana
     private let marginFromBottomLine: CGFloat = 10 // 10px od donje horizontalne linije (pomaknuto prema dolje za 10px)
@@ -35,20 +37,61 @@ struct ClientSidesView: View {
                 let adjustedY = lineYPosition - geometry.frame(in: .global).minY
                 let y = adjustedY - marginFromBottomLine - (squareHeight / 2) // Linija - 110px - polovica visine = centar kvadrata
                 
-                VStack {
-                    Text(isLeftSide ? "Client A" : "Client B")
-                        .font(.headline.bold())
-                        .foregroundColor(.gray)
+                ZStack {
+                    // Background okvir
+                    VStack {
+                        Text(isLeftSide ? "Client A" : "Client B")
+                            .font(.headline.bold())
+                            .foregroundColor(.gray)
+                        
+                        Spacer()
+                    }
+                    .frame(width: squareWidth, height: squareHeight) // 285x345px
+                    .background(Color.gray.opacity(0.2))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.gray, lineWidth: 2)
+                    )
+                    .zIndex(1) // Background je najniži
                     
-                    Spacer()
+                    // View-ovi unutar cijelog okvira - iza control panela
+                    if clientControlPanel.showUser {
+                        ClientUserView(isPresented: $clientControlPanel.showUser, clientName: isLeftSide ? "Client A" : "Client B")
+                            .frame(width: squareWidth, height: squareHeight)
+                            .zIndex(5) // Ispod control panela
+                    }
+                    
+                    if clientControlPanel.showTopology {
+                        ClientTopologyView(isPresented: $clientControlPanel.showTopology, clientName: isLeftSide ? "Client A" : "Client B")
+                            .frame(width: squareWidth, height: squareHeight)
+                            .zIndex(5) // Ispod control panela
+                    }
+                    
+                    if clientControlPanel.showLogs {
+                        ClientLogsView(isPresented: $clientControlPanel.showLogs, clientName: isLeftSide ? "Client A" : "Client B")
+                            .frame(width: squareWidth, height: squareHeight)
+                            .zIndex(5) // Ispod control panela
+                    }
+                    
+                    if clientControlPanel.showExclamation {
+                        ClientExclamationView(isPresented: $clientControlPanel.showExclamation, clientName: isLeftSide ? "Client A" : "Client B")
+                            .frame(width: squareWidth, height: squareHeight)
+                            .zIndex(5) // Ispod control panela
+                    }
+                    
+                    // Client Control Panel na dnu kvadrata - IZNAD view-ova
+                    VStack {
+                        Spacer()
+                        ClientControlPanelView(
+                            clientControlPanel: clientControlPanel,
+                            clientName: isLeftSide ? "Client A" : "Client B"
+                        )
+                        .frame(height: 60) // Visina za panel
+                    }
+                    .frame(width: squareWidth, height: squareHeight)
+                    .zIndex(20) // Iznad view-ova
                 }
-                .frame(width: squareWidth, height: squareHeight) // 285x345px
-                .background(Color.gray.opacity(0.2))
-                .cornerRadius(12)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.gray, lineWidth: 2)
-                )
                 .position(
                     x: isLeftSide ? 
                         (marginFromEdge + (squareWidth / 2)) : // 5 + 142.5 = 147.5px (lijevo)

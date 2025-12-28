@@ -75,6 +75,10 @@ struct ConnectionLine: View {
             return .horizontal
         case .top, .bottom:
             return .vertical
+        case .topLeft, .topRight, .bottomLeft, .bottomRight:
+            // Kutni pinovi se tretiraju kao unknown za S-krivulje i 90° lukove
+            // Mogu se koristiti za posebne slučajeve u budućnosti
+            return .unknown
         }
     }
     
@@ -124,6 +128,11 @@ struct ConnectionLine: View {
             horizontalLineY = from.y
         case .top, .bottom:
             verticalLineX = from.x
+        case .topLeft, .topRight, .bottomLeft, .bottomRight:
+            // Za kutne pinove, koristi kombinaciju - prvo horizontalna, zatim vertikalna
+            // Ili možemo koristiti dijagonalnu liniju
+            horizontalLineY = from.y
+            verticalLineX = from.x
         }
         
         // Odredi drugu zamišljenu liniju na temelju toPin
@@ -131,6 +140,11 @@ struct ConnectionLine: View {
         case .left, .right:
             horizontalLineY = to.y
         case .top, .bottom:
+            verticalLineX = to.x
+        case .topLeft, .topRight, .bottomLeft, .bottomRight:
+            // Za kutne pinove, koristi kombinaciju - prvo horizontalna, zatim vertikalna
+            // Ili možemo koristiti dijagonalnu liniju
+            horizontalLineY = to.y
             verticalLineX = to.x
         }
         

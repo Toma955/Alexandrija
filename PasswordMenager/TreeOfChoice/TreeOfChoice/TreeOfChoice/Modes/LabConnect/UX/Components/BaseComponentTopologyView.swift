@@ -127,12 +127,7 @@ struct BaseComponentTopologyView: View {
         }
         .sheet(isPresented: $showSettingsMenu) {
             // Prikaži settings menu iz BaseTopologyElement
-            // Osiguraj da se component prosljeđuje kao @ObservedObject za binding
-            SettingsMenuView(
-                component: component, // Koristi direktno component iz BaseComponentTopologyView
-                topology: topology,
-                customView: topologyElement.settingsMenu.customSettingsView()
-            )
+            topologyElement.showSettingsMenu()
         }
     }
     
@@ -173,69 +168,115 @@ struct BaseComponentTopologyView: View {
     /// Ikona s gesture-om - različito ponašanje ovisno o mode-u
     private var componentIconWithGesture: some View {
         Group {
-            // Provjeri da li je Config mode (isTestMode = true ili settingsMode = true)
-            let isConfigMode = isTestMode || topologyElement.settingsMode
-            
-            if !isConfigMode {
-                // Edit mode: Button s drag gesture na ikoni za pomicanje komponente
-                // U Edit mode-u, drag pomiče komponentu, tap ne radi ništa
-                Button(action: {}) {
-                    componentIcon
-                        .frame(maxWidth: .infinity, maxHeight: .infinity) // Centriraj ikonu u Button-u
-                }
-                .buttonStyle(PlainButtonStyle()) // Ukloni default button styling
-                .frame(width: componentSize, height: componentSize) // Button je istih dimenzija kao kvadrat
-                .highPriorityGesture(
-                    // highPriorityGesture daje DragGesture prioritet nad Button action
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            if !isDraggingIcon {
-                                isDraggingIcon = true
-                                iconDragStartLocation = value.startLocation
-                                
-                                // Pozovi onIconDrag za početak drag-a
-                                if let onIconDrag = onIconDrag {
-                                    onIconDrag(component, value.startLocation)
-                                }
-                            }
-                            
-                            // Ažuriraj offset (relativno na BaseComponentTopologyView)
-                            iconDragOffset = CGSize(
-                                width: value.location.x - value.startLocation.x,
-                                height: value.location.y - value.startLocation.y
-                            )
-                            
-                            // Pozovi onIconDragUpdate za kontinuirano ažuriranje
-                            if let onIconDragUpdate = onIconDragUpdate {
-                                onIconDragUpdate(component, value.location)
-                            }
-                        }
-                        .onEnded { value in
-                            isDraggingIcon = false
-                            
-                            // Pozovi onIconDragEnd za završetak drag-a
-                            if let onIconDragEnd = onIconDragEnd {
-                                onIconDragEnd(component, value.location)
-                            }
-                            
-                            // Reset offset
-                            iconDragOffset = .zero
-                        }
-                )
-            } else {
-                // Config mode: Button s tap action za otvaranje settings izbornika (menu)
-                // Ovo vrijedi za SVE elemente, uključujući Area elemente
+            if topologyElement.editMode && !isTestMode {
+                // Edit mode: Button s drag gesture na ikoni
+                // Tap (bez pomicanja) otvara menu, drag (s pomicanjem) pomiče komponentu
                 Button(action: {
-                    // U Config mode-u, klik na Button otvara menu/postavke
-                    topologyElement.openSettings()
-                    showSettingsMenu = true
+                    // Button action se poziva samo ako nije bio drag
+                    // Ako je bio drag, DragGesture će to obraditi
+                    if !isDraggingIcon {
+                        topologyElement.openSettings()
+                        showSettingsMenu = true
+                    }
                 }) {
                     componentIcon
                         .frame(maxWidth: .infinity, maxHeight: .infinity) // Centriraj ikonu u Button-u
                 }
                 .buttonStyle(PlainButtonStyle()) // Ukloni default button styling
                 .frame(width: componentSize, height: componentSize) // Button je istih dimenzija kao kvadrat
-                .contentShape(Rectangle()) // Osiguraj da je cijeli button klikabilan
+                .simultaneousGesture(
+                    // simultaneousGesture omogućava da DragGesture i Button action rade istovremeno
+                    // Provjerit ćemo u onEnded je li to tap ili drag
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            // Provjeri je li se miš pomaknuo (drag) ili je samo klik (tap)
+                            let dragDistance = sqrt(
+                                pow(value.location.x - value.startLocation.x, 2) +
+                                pow(value.location.y - value.startLocation.y, 2)
+                            )
+                            
+                            // Ako se miš pomaknuo više od 3px, to je drag
+                            if dragDistance > 3 {
+                                if !isDraggingIcon {
+                                    isDraggingIcon = true
+                                    iconDragStartLocation = value.startLocation
+                                    
+                                    // Pozovi onIconDrag za početak drag-a
+                                    if let onIconDrag = onIconDrag {
+                                        onIconDrag(component, value.startLocation)
+                                    }
+                                }
+                                
+                                // Ažuriraj offset (relativno na BaseComponentTopologyView)
+                                iconDragOffset = CGSize(
+                                    width: value.location.x - value.startLocation.x,
+                                    height: value.location.y - value.startLocation.y
+                                )
+                                
+                                // Pozovi onIconDragUpdate za kontinuirano ažuriranje
+                                if let onIconDragUpdate = onIconDragUpdate {
+                                    onIconDragUpdate(component, value.location)
+                                }
+                            }
+                        }
+                        .onEnded { value in
+                            // Provjeri je li to tap (bez pomicanja) ili drag (s pomicanjem)
+                            let dragDistance = sqrt(
+                                pow(value.location.x - value.startLocation.x, 2) +
+                                pow(value.location.y - value.startLocation.y, 2)
+                            )
+                            
+                            if isDraggingIcon {
+                                // Drag (s pomicanjem) - završi drag
+                                if let onIconDragEnd = onIconDragEnd {
+                                    onIconDragEnd(component, value.location)
+                                }
+                            } else if dragDistance < 3 {
+                                // Tap (bez pomicanja) - otvori menu
+                                topologyElement.openSettings()
+                                showSettingsMenu = true
+                            }
+                            
+                            // Reset state
+                            isDraggingIcon = false
+                            iconDragOffset = .zero
+                            dragStartTime = nil
+                        }
+                )
+            } else {
+                // Config mode: Button s tap action za otvaranje settings izbornika
+                Button(action: {
+                    handleIconTap()
+                }) {
+                    componentIcon
+                        .frame(maxWidth: .infinity, maxHeight: .infinity) // Centriraj ikonu u Button-u
+                }
+                .buttonStyle(PlainButtonStyle()) // Ukloni default button styling
+                .frame(width: componentSize, height: componentSize) // Button je istih dimenzija kao kvadrat
+            }
+        }
+    }
+    
+    // MARK: - Icon Tap Handler
+    
+    private func handleIconTap() {
+        // U Config mode-u, klik na ikonu otvara settings izbornik
+        if topologyElement.settingsMode || isTestMode {
+            // Ako postoji custom tap handler, koristi ga (za kompatibilnost)
+            if let customTap = onIconTap {
+                customTap()
+                return
+            }
+            
+            // Inače koristi TopologyElement logiku - otvori settings menu
+            topologyElement.openSettings()
+            // Prikaži settings menu sheet
+            showSettingsMenu = true
+        } else {
+            // U Edit mode-u, ako nema drag-a, možda je samo tap
+            // (ali drag bi trebao biti prioritet)
+            if let customTap = onIconTap {
+                customTap()
             }
         }
     }
@@ -253,25 +294,6 @@ struct BaseComponentTopologyView: View {
             finalIconColor = Color(red: 1.0, green: 0.36, blue: 0.0) // Narančasta u Config mode-u
         } else {
             finalIconColor = topologyElement.getIconColor()
-        }
-        
-        // Provjeri da li treba koristiti selectedDeviceType za User Area ili Gateway za ostale Area elemente
-        if component.componentType == .userArea, let deviceType = component.selectedDeviceType {
-            // Za User Area, koristi ikonu odabranog device type-a
-            return Group {
-                Image(systemName: ComponentIconHelper.icon(for: deviceType))
-                    .font(.system(size: 32, weight: .medium))
-                    .foregroundColor(finalIconColor)
-            }
-        } else if component.componentType == .businessArea || 
-                  component.componentType == .businessPrivateArea || 
-                  component.componentType == .nilterniusArea {
-            // Za ostale Area elemente, koristi Gateway ikonu
-            return Group {
-                Image(systemName: "antenna.radiowaves.left.and.right")
-                    .font(.system(size: 32, weight: .medium))
-                    .foregroundColor(finalIconColor)
-            }
         }
         
         return Group {
