@@ -91,7 +91,7 @@ struct BottomControlPanelView: View {
             // Prikaži odgovarajući view ovisno o isGameMode
             Group {
                 if bottomControlPanel.isGameMode {
-                    GameModeView()
+                    GameModeView(canvasElement: canvasElement)
                         .id("gameMode") // ID za pravilnu animaciju
                 } else {
                     TrackModeView(isEditMode: .constant(false), canvasElement: canvasElement)
