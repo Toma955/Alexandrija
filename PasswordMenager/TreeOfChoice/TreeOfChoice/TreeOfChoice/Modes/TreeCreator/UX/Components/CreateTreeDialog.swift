@@ -8,17 +8,46 @@
 import SwiftUI
 import AppKit
 
+// MARK: - Status Type
+
+enum StatusType {
+    case success
+    case error
+    
+    var color: Color {
+        switch self {
+        case .success: return .green
+        case .error: return .red
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .success: return "checkmark.circle.fill"
+        case .error: return "exclamationmark.triangle.fill"
+        }
+    }
+}
+
 /// Dialog za kreiranje novog stabla odluke
 struct CreateTreeDialog: View {
     @EnvironmentObject private var localization: LocalizationManager
     @Binding var isPresented: Bool
+    var onTreeCreated: ((DecisionTreeItem) -> Void)? = nil
     
     @State private var treeName: String = ""
     @State private var selectedAgent: AgentType = .watchman
     @State private var description: String = ""
+    @State private var hashField: String = ""  // Polje "#"
+    @State private var starField: String = ""   // Polje "*"
     
     // Opcije koje se mogu odabrati (najmanje jedna, najviše sve)
     @State private var selectedOptions: Set<ConnectionOption> = []
+    
+    // Status poruka
+    @State private var showStatusMessage = false
+    @State private var statusMessage: String = ""
+    @State private var statusType: StatusType = .success
     
     private let accentOrange = Color(red: 1.0, green: 0.36, blue: 0.0)
     
@@ -115,6 +144,34 @@ struct CreateTreeDialog: View {
                     .frame(maxWidth: .infinity)
                 }
                 
+                // Polje "#" (optional)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("# (Optional)")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    TextField("Enter #", text: $hashField)
+                        .textFieldStyle(.plain)
+                        .padding(12)
+                        .background(Color.white.opacity(0.1))
+                        .cornerRadius(8)
+                        .foregroundColor(.white)
+                }
+                
+                // Polje "*" (optional)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("* (Optional)")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    TextField("Enter *", text: $starField)
+                        .textFieldStyle(.plain)
+                        .padding(12)
+                        .background(Color.white.opacity(0.1))
+                        .cornerRadius(8)
+                        .foregroundColor(.white)
+                }
+                
                 // Description (optional)
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Description (Optional)")
@@ -141,7 +198,6 @@ struct CreateTreeDialog: View {
                     
                     Button("Create") {
                         createTree()
-                        isPresented = false
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(accentOrange)
@@ -157,6 +213,17 @@ struct CreateTreeDialog: View {
                 RoundedRectangle(cornerRadius: 20)
                     .stroke(accentOrange.opacity(0.5), lineWidth: 2)
             )
+            .overlay(alignment: .top) {
+                if showStatusMessage {
+                    StatusToastView(
+                        message: statusMessage,
+                        type: statusType,
+                        isVisible: $showStatusMessage
+                    )
+                    .padding(.top, 16)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
         }
     }
     
@@ -174,14 +241,16 @@ struct CreateTreeDialog: View {
     private func createTree() {
         guard !treeName.isEmpty, !selectedOptions.isEmpty else { return }
         
-        // Kreiraj novo stablo
+        // Kreiraj novo stablo s poljima "#" i "*"
         let newTree = DecisionTreeItem(
             name: treeName,
             agentType: selectedAgent,
             createdAt: Date(),
             nodeCount: 0,
             isActive: false,
-            connectionOptions: selectedOptions
+            connectionOptions: selectedOptions,
+            hashField: hashField.isEmpty ? nil : hashField,
+            starField: starField.isEmpty ? nil : starField
         )
         
         // Spremi stablo u JSON datoteku
@@ -189,10 +258,47 @@ struct CreateTreeDialog: View {
             let fileURL = try TreeStorageService.shared.saveTree(newTree)
             print("Tree saved successfully to: \(fileURL.path)")
             print("Selected options: \(selectedOptions.map { $0.displayName })")
+            
+            // Prikaži uspješnu poruku
+            showStatusMessage(type: .success, message: "Tree '\(treeName)' created successfully!")
+            
+            // Zatvori dialog i otvori info view nakon kratke pauze
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                isPresented = false
+                // Pozovi callback s kreiranim stablom
+                onTreeCreated?(newTree)
+                // Resetiraj polja
+                resetFields()
+            }
         } catch {
             print("Error saving tree: \(error)")
-            // TODO: Prikaži error poruku korisniku
+            // Prikaži error poruku
+            showStatusMessage(type: .error, message: "Failed to create tree: \(error.localizedDescription)")
         }
+    }
+    
+    private func showStatusMessage(type: StatusType, message: String) {
+        statusType = type
+        statusMessage = message
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            showStatusMessage = true
+        }
+        
+        // Automatski sakrij poruku nakon 3 sekunde
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                showStatusMessage = false
+            }
+        }
+    }
+    
+    private func resetFields() {
+        treeName = ""
+        selectedAgent = .watchman
+        description = ""
+        hashField = ""
+        starField = ""
+        selectedOptions = []
     }
 }
 
@@ -337,6 +443,50 @@ struct ConnectionOptionButton: View {
             }
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Status Toast View
+
+struct StatusToastView: View {
+    let message: String
+    let type: StatusType
+    @Binding var isVisible: Bool
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: type.icon)
+                .font(.title3)
+                .foregroundColor(type.color)
+            
+            Text(message)
+                .font(.subheadline)
+                .foregroundColor(.white)
+            
+            Spacer()
+            
+            Button(action: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    isVisible = false
+                }
+            }) {
+                Image(systemName: "xmark")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.7))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.black.opacity(0.9))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(type.color.opacity(0.5), lineWidth: 1)
+                )
+        )
+        .shadow(color: type.color.opacity(0.3), radius: 10, x: 0, y: 5)
     }
 }
 

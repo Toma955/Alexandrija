@@ -143,40 +143,39 @@ struct TreeLibraryView: View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
                 tableHeader
-                
-                Divider()
-                .background(Color.white)
-                .frame(height: 1)
             
-            // Prvih par redova s random podacima - filtrirani na temelju header botuna
-            let allRows = generateRandomRows()
+            // Koristi stvarna stabla umjesto random podataka
+            let allRows = filteredTrees
             let filteredRows = filterRowsByHeaderState(allRows)
             
-            ForEach(Array(filteredRows.enumerated()), id: \.element.id) { index, tree in
+            if filteredRows.isEmpty {
+                // Empty state
+                VStack(spacing: 16) {
+                    Image(systemName: "tree")
+                        .font(.system(size: 48))
+                        .foregroundColor(.white.opacity(0.3))
+                    
+                    Text(trees.isEmpty ? "No trees found" : "No trees match your filters")
+                        .font(.headline)
+                        .foregroundColor(.white.opacity(0.7))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.top, 60)
+            } else {
+                ForEach(Array(filteredRows.enumerated()), id: \.element.id) { index, tree in
                         TreeTableRowView(
                             index: index + 1,
                             tree: tree,
                             isSelected: selectedTree?.id == tree.id,
-                    isEvenRow: index % 2 == 1,
-                            agentState: [:], // Ne koristi se - boje su fiksne ovisno o podacima
-                            connectionState: [:], // Ne koristi se - boje su fiksne ovisno o podacima
+                            isEvenRow: index % 2 == 1,
                             onTap: {
-                            selectedTree = tree
-                            },
-                            onAgentClick: { _ in
-                                // Ne mijenja boje - samo header botuni mijenjaju boje
-                            },
-                            onConnectionClick: { _ in
-                                // Ne mijenja boje - samo header botuni mijenjaju boje
+                                selectedTree = tree
                             },
                             onDelete: {
                                 deleteTree(tree)
                             }
                         )
-                        
-                            Divider()
-                    .background(Color.white)
-                    .frame(height: 1)
+                }
             }
             
             Spacer()
@@ -228,35 +227,6 @@ struct TreeLibraryView: View {
         }
     }
     
-    private func generateRandomRows() -> [DecisionTreeItem] {
-        let names = ["Alpha Tree", "Beta Decision", "Gamma Path", "Delta Choice", "Epsilon Route"]
-        let agentTypes: [AgentType] = [.watchman, .connection, .counterintelligence]
-        let allConnections: [ConnectionOption] = [.bluetooth, .localhost, .arp, .internet, .satellite]
-        return names.map { name in
-            // Samo jedan agent tip
-            let randomAgent = agentTypes.randomElement() ?? .watchman
-            
-            // Za connection opcije: najčešće 1-2, ali mogu biti i svi (10% šanse za sve)
-            let connectionCount: Int
-            if Int.random(in: 1...10) == 1 {
-                // 10% šanse za sve 5
-                connectionCount = 5
-            } else {
-                // 90% šanse za 1-2
-                connectionCount = Int.random(in: 1...2)
-            }
-            let randomConnections = Array(allConnections.shuffled().prefix(connectionCount))
-            
-            return DecisionTreeItem(
-                name: name,
-                agentType: randomAgent,
-                createdAt: Date(),
-                nodeCount: Int.random(in: 5...50),
-                isActive: Bool.random(),
-                connectionOptions: Set(randomConnections)
-            )
-        }
-    }
     
     private func tableFooter(count: Int) -> some View {
         HStack(spacing: 0) {
@@ -266,27 +236,15 @@ struct TreeLibraryView: View {
                 .foregroundColor(.white.opacity(0.7))
                 .frame(width: 80, alignment: .leading)
             
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
-            
             // Povećalo
             Image(systemName: "magnifyingglass")
                 .foregroundColor(.white.opacity(0.7))
                 .frame(width: 50)
             
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
-            
             // Info
             Image(systemName: "info.circle")
                 .foregroundColor(.white.opacity(0.7))
                 .frame(width: 50)
-            
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
             
             // Name
             HStack {
@@ -298,10 +256,6 @@ struct TreeLibraryView: View {
                 Spacer()
             }
             
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
-            
             // 3 Agent botuni
             HStack(spacing: 12) {
                 ForEach(1...3, id: \.self) { _ in
@@ -311,10 +265,6 @@ struct TreeLibraryView: View {
                 }
             }
             .frame(width: 260)
-            
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
             
             // 5 Connection botuna
             HStack(spacing: 8) {
@@ -326,10 +276,6 @@ struct TreeLibraryView: View {
             }
             .frame(width: 310)
             
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
-            
             // Polje sa brojevima redova
             HStack(spacing: 4) {
                 ForEach(1...min(10, count), id: \.self) { num in
@@ -340,10 +286,6 @@ struct TreeLibraryView: View {
                 }
             }
             .frame(width: 300)
-            
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
             
             // Polje sa *
             Text("*")
@@ -363,10 +305,6 @@ struct TreeLibraryView: View {
                 .frame(width: 80)
                 .multilineTextAlignment(.center)
             
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
-            
             // Narančasti krug sa povećalom (klikabilni botun)
             Button(action: {
                 // TODO: Search/filter action
@@ -383,10 +321,6 @@ struct TreeLibraryView: View {
             }
             .buttonStyle(.plain)
             .frame(width: 50)
-            
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
             
             // Narančasti krug sa Info (klikabilni botun)
             Button(action: {
@@ -405,10 +339,6 @@ struct TreeLibraryView: View {
             .buttonStyle(.plain)
             .frame(width: 50)
             
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
-            
             // Narančasti krug sa smećem (klikabilni botun)
             Button(action: {
                 // TODO: Delete action
@@ -426,20 +356,12 @@ struct TreeLibraryView: View {
             .buttonStyle(.plain)
             .frame(width: 50)
             
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
-            
             // Name
             Text("Name")
                 .font(.headline)
                 .foregroundColor(.white.opacity(0.7))
                 .frame(width: 120)
                 .multilineTextAlignment(.center)
-            
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
             
             // 3 Agent botuni u headeru (klikabilni, veći)
             HStack(spacing: 12) {
@@ -520,10 +442,6 @@ struct TreeLibraryView: View {
             }
             .frame(width: 260)
             
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
-            
             // 5 Connection botuna u headeru (klikabilni, veći)
             HStack(spacing: 8) {
                 ForEach([ConnectionOption.bluetooth, .localhost, .arp, .internet, .satellite], id: \.self) { option in
@@ -557,19 +475,11 @@ struct TreeLibraryView: View {
             }
             .frame(width: 310)
             
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
-            
             // Polje sa #
             Text("#")
                 .font(.headline)
                 .foregroundColor(.white.opacity(0.7))
                 .frame(width: 300)
-            
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
             
             // Polje sa *
             Text("*")
@@ -577,6 +487,7 @@ struct TreeLibraryView: View {
                 .foregroundColor(.white.opacity(0.7))
                 .frame(width: 100)
         }
+        .frame(height: 40) // Fiksna visina za header
         .background(Color.black.opacity(0.3))
     }
     
@@ -603,19 +514,6 @@ struct TreeLibraryView: View {
         }
     }
     
-    private func generateEmptyRows() -> [DecisionTreeItem] {
-        let agentTypes: [AgentType] = [.watchman, .connection, .counterintelligence, .security, .intelligence, .analysis, .monitoring]
-        return (1...10).map { index in
-            DecisionTreeItem(
-                name: "Tree \(index)",
-                agentType: agentTypes[index % agentTypes.count],
-                createdAt: Date(),
-                nodeCount: 0,
-                isActive: false,
-                connectionOptions: []
-            )
-        }
-    }
     
     // MARK: - Actions
     
@@ -660,15 +558,23 @@ struct TreeLibraryView: View {
     private func deleteTree(_ tree: DecisionTreeItem) {
         do {
             try TreeStorageService.shared.deleteTree(tree)
+            
+            // Ako je obrisano stablo trenutno odabrano, deselektiraj ga
             if selectedTree?.id == tree.id {
                 selectedTree = nil
             }
+            
             // Očisti stanja za obrisano stablo
             agentStates.removeValue(forKey: tree.id)
             connectionStates.removeValue(forKey: tree.id)
-            loadTrees() // Osvježi listu
+            
+            // Osvježi listu stabala
+            loadTrees()
+            
+            print("Tree '\(tree.name)' deleted successfully")
         } catch {
-            print("Error deleting tree: \(error)")
+            print("Error deleting tree: \(error.localizedDescription)")
+            // TODO: Prikaži error poruku korisniku
         }
     }
     
@@ -768,6 +674,8 @@ struct TreeDetailView: View {
     @EnvironmentObject private var localization: LocalizationManager
     let tree: DecisionTreeItem
     
+    private let accentOrange = Color(red: 1.0, green: 0.36, blue: 0.0)
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             // Header
@@ -809,24 +717,126 @@ struct TreeDetailView: View {
             .padding(24)
             .background(Color.black.opacity(0.4))
             
-            // Tree visualization/editor
+            // Tree information
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text(localization.text("treeLibrary.treeStructure"))
-                        .font(.headline)
-                        .foregroundColor(.white)
+                VStack(alignment: .leading, spacing: 24) {
+                    // Basic Information
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Basic Information")
+                            .font(.headline)
+                            .foregroundColor(accentOrange)
+                        
+                        InfoRow(label: "Name", value: tree.name)
+                        InfoRow(label: "Created", value: tree.createdAt.formatted(date: .abbreviated, time: .shortened))
+                        InfoRow(label: "Node Count", value: "\(tree.nodeCount)")
+                        InfoRow(label: "Status", value: tree.isActive ? "Active" : "Inactive")
+                    }
+                    .padding(16)
+                    .background(Color.white.opacity(0.05))
+                    .cornerRadius(12)
                     
-                    // TODO: Add tree visualization/editor
-                    Text(localization.text("treeLibrary.treeEditorPlaceholder"))
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.5))
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(40)
+                    // Agent Information
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Agent Type")
+                            .font(.headline)
+                            .foregroundColor(accentOrange)
+                        
+                        HStack(spacing: 12) {
+                            if let nsImage = loadAgentIcon(tree.agentType) {
+                                Image(nsImage: nsImage)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 40, height: 40)
+                                    .clipShape(Circle())
+                            } else {
+                                ZStack {
+                                    Circle()
+                                        .fill(tree.agentType.color.opacity(0.2))
+                                        .frame(width: 40, height: 40)
+                                    
+                                    Image(systemName: tree.agentType.icon)
+                                        .font(.title3)
+                                        .foregroundColor(tree.agentType.color)
+                                }
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(tree.agentType.displayName)
+                                    .font(.subheadline.bold())
+                                    .foregroundColor(.white)
+                                
+                                Text(tree.agentType.rawValue)
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.6))
+                            }
+                        }
+                    }
+                    .padding(16)
+                    .background(Color.white.opacity(0.05))
+                    .cornerRadius(12)
+                    
+                    // Connection Options
+                    if !tree.connectionOptions.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Connection Options")
+                                .font(.headline)
+                                .foregroundColor(accentOrange)
+                            
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                                ForEach(Array(tree.connectionOptions), id: \.self) { option in
+                                    ConnectionOptionChip(option: option)
+                                }
+                            }
+                        }
+                        .padding(16)
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(12)
+                    }
+                    
+                    // Optional Fields
+                    if tree.hashField != nil || tree.starField != nil {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Additional Fields")
+                                .font(.headline)
+                                .foregroundColor(accentOrange)
+                            
+                            if let hashField = tree.hashField, !hashField.isEmpty {
+                                InfoRow(label: "#", value: hashField)
+                            }
+                            
+                            if let starField = tree.starField, !starField.isEmpty {
+                                InfoRow(label: "*", value: starField)
+                            }
+                        }
+                        .padding(16)
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(12)
+                    }
                 }
                 .padding(24)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func loadAgentIcon(_ agent: AgentType) -> NSImage? {
+        let iconName: String
+        switch agent {
+        case .watchman: iconName = "Watchmen Amblem"
+        case .connection: iconName = "Conection Agent Amblem"
+        case .counterintelligence: iconName = "Counter Inteligence Agent"
+        default: return nil
+        }
+        
+        if let imageURL = Bundle.main.url(forResource: iconName, withExtension: "png", subdirectory: "Shared/UX/Icons") {
+            return NSImage(contentsOf: imageURL)
+        }
+        if let imageURL = Bundle.main.url(forResource: iconName, withExtension: "png") {
+            return NSImage(contentsOf: imageURL)
+        }
+        return nil
     }
 }
 
@@ -837,11 +847,7 @@ struct TreeTableRowView: View {
     let tree: DecisionTreeItem
     let isSelected: Bool
     let isEvenRow: Bool
-    let agentState: [AgentType: Int]
-    let connectionState: [ConnectionOption: Int]
     let onTap: () -> Void
-    let onAgentClick: (AgentType) -> Void
-    let onConnectionClick: (ConnectionOption) -> Void
     let onDelete: () -> Void
     
     @State private var showDeleteConfirmation = false
@@ -857,10 +863,6 @@ struct TreeTableRowView: View {
                 .foregroundColor(.white.opacity(0.7))
                 .frame(width: 80)
                 .multilineTextAlignment(.center)
-            
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
             
             // Narančasti krug sa povećalom
             Button(action: {
@@ -880,10 +882,6 @@ struct TreeTableRowView: View {
             .buttonStyle(.plain)
             .frame(width: 50)
             
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
-            
             // Narančasti krug sa Info
             Button(action: {
                 // TODO: Show info
@@ -900,10 +898,6 @@ struct TreeTableRowView: View {
             }
             .buttonStyle(.plain)
             .frame(width: 50)
-            
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
             
             // Narančasti krug sa smećem
                 Button(action: {
@@ -922,10 +916,6 @@ struct TreeTableRowView: View {
                 .buttonStyle(.plain)
             .frame(width: 50)
             
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
-            
             // Nazivi
             Button(action: onTap) {
                 Text(tree.name)
@@ -938,14 +928,10 @@ struct TreeTableRowView: View {
                 }
                 .buttonStyle(.plain)
                 
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
-            
-            // 3 Agent botuni - samo jedan može biti aktivan (ne mijenjaju boje klikom)
+            // 3 Agent botuni - samo jedan može biti aktivan (STATIČNI - ne mijenjaju se klikom)
             HStack(spacing: 12) {
                 ForEach([AgentType.watchman, .connection, .counterintelligence], id: \.self) { agent in
-                    // Ne klikabilni - samo prikazuju podatke
+                    // STATIČNI - samo prikazuju podatke, NIKAD se ne mijenjaju
                     ZStack {
                         // Ako je ovo agent tip stabla, prikaži aktivnu boju, inače siva
                         let isActive = tree.agentType == agent
@@ -966,18 +952,16 @@ struct TreeTableRowView: View {
                                 .foregroundColor(isActive ? .white : .white.opacity(0.5))
                         }
                     }
+                    .allowsHitTesting(false) // Onemogući sve interakcije
                 }
             }
             .frame(width: 260)
+            .allowsHitTesting(false) // Onemogući sve interakcije na cijelom HStack-u
             
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
-            
-            // 5 Connection botuna - prikazuje samo one koji su u connectionOptions (ne mijenjaju boje klikom)
+            // 5 Connection botuna - prikazuje samo one koji su u connectionOptions (STATIČNI - ne mijenjaju se klikom)
             HStack(spacing: 8) {
                 ForEach([ConnectionOption.bluetooth, .localhost, .arp, .internet, .satellite], id: \.self) { option in
-                    // Ne klikabilni - samo prikazuju podatke
+                    // STATIČNI - samo prikazuju podatke, NIKAD se ne mijenjaju
                     ZStack {
                         // Ako je opcija u connectionOptions stabla, prikaži aktivnu boju, inače siva
                         let isActive = tree.connectionOptions.contains(option)
@@ -1000,32 +984,31 @@ struct TreeTableRowView: View {
                                 .frame(width: 24, height: 24)
                         }
                     }
+                    .allowsHitTesting(false) // Onemogući sve interakcije
                 }
             }
             .frame(width: 310)
+            .allowsHitTesting(false) // Onemogući sve interakcije na cijelom HStack-u
             
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
-            
-            // Polje sa #
-            Text("#")
-                .font(.headline)
-                .foregroundColor(.white.opacity(0.5))
+            // Polje sa # - prikazuje stvarnu vrijednost
+            Text(tree.hashField ?? "-")
+                .font(.subheadline)
+                .foregroundColor(tree.hashField != nil ? .white.opacity(0.8) : .white.opacity(0.3))
                 .frame(width: 300)
                 .multilineTextAlignment(.center)
+                .lineLimit(1)
+                .truncationMode(.tail)
             
-            Divider()
-                .background(Color.white)
-                .frame(height: 40)
-            
-            // Polje sa *
-            Text("*")
-                .font(.headline)
-                .foregroundColor(.white.opacity(0.5))
+            // Polje sa * - prikazuje stvarnu vrijednost
+            Text(tree.starField ?? "-")
+                .font(.subheadline)
+                .foregroundColor(tree.starField != nil ? .white.opacity(0.8) : .white.opacity(0.3))
                 .frame(width: 100)
                 .multilineTextAlignment(.center)
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
+        .frame(height: 40) // Fiksna visina za redove
         .background(
             isSelected ? Color.white.opacity(0.1) :
             (isEvenRow ? Color.gray.opacity(0.2) : Color.black.opacity(0.3))

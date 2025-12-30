@@ -276,8 +276,10 @@ struct DecisionTreeItem: Identifiable, Codable {
     var nodeCount: Int = 0
     var isActive: Bool = false
     var connectionOptions: Set<ConnectionOption> = []
+    var hashField: String? = nil  // Polje "#"
+    var starField: String? = nil   // Polje "*"
     
-    init(name: String, agentType: AgentType, createdAt: Date, nodeCount: Int = 0, isActive: Bool = false, connectionOptions: Set<ConnectionOption> = []) {
+    init(name: String, agentType: AgentType, createdAt: Date, nodeCount: Int = 0, isActive: Bool = false, connectionOptions: Set<ConnectionOption> = [], hashField: String? = nil, starField: String? = nil) {
         self.id = UUID()
         self.name = name
         self.agentType = agentType
@@ -285,6 +287,8 @@ struct DecisionTreeItem: Identifiable, Codable {
         self.nodeCount = nodeCount
         self.isActive = isActive
         self.connectionOptions = connectionOptions
+        self.hashField = hashField
+        self.starField = starField
     }
 }
 

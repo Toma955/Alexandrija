@@ -103,14 +103,38 @@ class TreeStorageService {
     
     /// Briše stablo (JSON datoteku)
     func deleteTree(_ tree: DecisionTreeItem) throws {
-        let fileName = sanitizeFileName(tree.name) + ".json"
-        let fileURL = treesDirectory.appendingPathComponent(fileName)
+        // Pronađi datoteku koja sadrži ovo stablo (po ID-u)
+        let files = try FileManager.default.contentsOfDirectory(
+            at: treesDirectory,
+            includingPropertiesForKeys: [.creationDateKey],
+            options: [.skipsHiddenFiles]
+        )
         
-        if FileManager.default.fileExists(atPath: fileURL.path) {
-            try FileManager.default.removeItem(at: fileURL)
-            // Pošalji notification da je lista stabala ažurirana
-            NotificationCenter.default.post(name: .treeListDidUpdate, object: nil)
+        let jsonFiles = files.filter { $0.pathExtension == "json" }
+        
+        // Pronađi datoteku koja sadrži stablo s istim ID-om
+        for fileURL in jsonFiles {
+            do {
+                let data = try Data(contentsOf: fileURL)
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                let loadedTree = try decoder.decode(DecisionTreeItem.self, from: data)
+                
+                // Ako je ID isti, ovo je datoteka koju trebamo obrisati
+                if loadedTree.id == tree.id {
+                    try FileManager.default.removeItem(at: fileURL)
+                    // Pošalji notification da je lista stabala ažurirana
+                    NotificationCenter.default.post(name: .treeListDidUpdate, object: nil)
+                    return
+                }
+            } catch {
+                // Nastavi s drugom datotekom ako ova ne može biti dekodirana
+                continue
+            }
         }
+        
+        // Ako datoteka nije pronađena, baci grešku
+        throw NSError(domain: "TreeStorageService", code: 404, userInfo: [NSLocalizedDescriptionKey: "Tree file not found"])
     }
     
     /// Briše stablo po URL-u
