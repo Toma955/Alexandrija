@@ -68,7 +68,7 @@ struct ComponentDetailView: View {
                 let currentAgent = topology.getAgent(for: component.id)
                 
                 HStack(spacing: 12) {
-                    ForEach([AgentType.watchman, .connection, .counterintelligence, .security], id: \.self) { agent in
+                    ForEach([AgentType.watchman, .connection, .counterintelligence, .security, .intelligence, .analysis, .monitoring], id: \.self) { agent in
                         AgentButton(
                             agent: agent,
                             isSelected: currentAgent == agent,

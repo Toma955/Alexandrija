@@ -187,6 +187,9 @@ struct TreeSelectorItemView: View {
         case .connection: return "network"
         case .counterintelligence: return "shield"
         case .security: return "lock.shield"
+        case .intelligence: return "brain"
+        case .analysis: return "chart.bar"
+        case .monitoring: return "chart.line.uptrend.xyaxis"
         }
     }
     
@@ -196,6 +199,9 @@ struct TreeSelectorItemView: View {
         case .connection: return .green
         case .counterintelligence: return .orange
         case .security: return .red
+        case .intelligence: return .purple
+        case .analysis: return .cyan
+        case .monitoring: return .yellow
         }
     }
 }

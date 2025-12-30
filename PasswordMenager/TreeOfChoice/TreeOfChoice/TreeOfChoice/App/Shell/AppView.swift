@@ -13,6 +13,7 @@ struct AppView: View {
         case realConnect
         case realSecurity
         case treeLibrary
+        case treeCreator
     }
 
     private let accentOrange = Color(red: 1.0, green: 0.36, blue: 0.0) // #FF5C00
@@ -146,13 +147,13 @@ struct AppView: View {
                     .frame(maxWidth: .infinity)
                     
                     ModeCard(
-                        title: "Info",
+                        title: "Tree Creator",
                         description: "",
-                        buttonTitle: "Info",
-                        iconName: "info",
+                        buttonTitle: "Tree Creator",
+                        iconName: "decision",
                         accentColor: accentOrange,
                         action: {
-                            // TODO: Implement Info action
+                            selectedMode = .treeCreator
                         }
                     )
                     .frame(maxWidth: .infinity)
@@ -190,6 +191,7 @@ struct AppView: View {
         case .realConnect: return .realConnect
         case .realSecurity: return .realSecurity
         case .treeLibrary: return .treeLibrary
+        case .treeCreator: return .treeCreator
         }
     }
 }

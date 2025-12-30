@@ -141,6 +141,9 @@
     "treeLibrary.treeStructure": "Tree structure",
     "treeLibrary.treeEditorPlaceholder": "Tree editor will be implemented here",
     
+    "treeCreator.title": "Tree Creator",
+    "treeCreator.homeDescription": "Create and edit decision trees for agents.",
+    
     "modeWindow.backToHome": "Home",
     
     "topology.components": "Components",

@@ -50,6 +50,7 @@ struct ModeWindowView: View {
         case realConnect
         case realSecurity
         case treeLibrary
+        case treeCreator
         
         var id: Self { self }
         
@@ -60,6 +61,7 @@ struct ModeWindowView: View {
             case .realConnect: return "Real Connect"
             case .realSecurity: return "Real Security"
             case .treeLibrary: return "Tree Library"
+            case .treeCreator: return "Tree Creator"
             }
         }
         
@@ -70,6 +72,7 @@ struct ModeWindowView: View {
             case .realConnect: return "mode.realConnect.title"
             case .realSecurity: return "mode.realSecurity.title"
             case .treeLibrary: return "treeLibrary.title"
+            case .treeCreator: return "treeCreator.title"
             }
         }
     }
@@ -207,6 +210,9 @@ struct ModeWindowView: View {
             
             // Tree Library
             newTabButton(for: .treeLibrary, icon: "tree")
+            
+            // Tree Creator
+            newTabButton(for: .treeCreator, icon: "decision")
         }
         .padding(.trailing, 8)
     }
@@ -260,6 +266,9 @@ struct ModeWindowView: View {
                         .environmentObject(localization)
                 case .treeLibrary:
                     TreeLibraryView()
+                        .environmentObject(localization)
+                case .treeCreator:
+                    TreeCreatorView()
                         .environmentObject(localization)
                 }
             }

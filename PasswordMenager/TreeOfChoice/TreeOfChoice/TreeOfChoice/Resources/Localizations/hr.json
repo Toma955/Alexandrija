@@ -141,6 +141,9 @@
     "treeLibrary.treeStructure": "Struktura stabla",
     "treeLibrary.treeEditorPlaceholder": "Tree editor će biti implementiran ovdje",
     
+    "treeCreator.title": "Tree Creator",
+    "treeCreator.homeDescription": "Kreiranje i uređivanje binarnih stabala odluke za agente.",
+    
     "modeWindow.backToHome": "Početna",
     
     "topology.components": "Komponente",

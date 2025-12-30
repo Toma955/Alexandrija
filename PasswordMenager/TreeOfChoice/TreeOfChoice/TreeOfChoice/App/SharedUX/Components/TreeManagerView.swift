@@ -247,6 +247,9 @@ struct TreeCardView: View {
         case .connection: return "network"
         case .counterintelligence: return "shield"
         case .security: return "lock.shield"
+        case .intelligence: return "brain"
+        case .analysis: return "chart.bar"
+        case .monitoring: return "chart.line.uptrend.xyaxis"
         }
     }
     
@@ -256,6 +259,9 @@ struct TreeCardView: View {
         case .connection: return .green
         case .counterintelligence: return .orange
         case .security: return .red
+        case .intelligence: return .purple
+        case .analysis: return .cyan
+        case .monitoring: return .yellow
         }
     }
 }
@@ -269,14 +275,46 @@ struct DecisionTreeItem: Identifiable, Codable {
     let createdAt: Date
     var nodeCount: Int = 0
     var isActive: Bool = false
+    var connectionOptions: Set<ConnectionOption> = []
     
-    init(name: String, agentType: AgentType, createdAt: Date, nodeCount: Int = 0, isActive: Bool = false) {
+    init(name: String, agentType: AgentType, createdAt: Date, nodeCount: Int = 0, isActive: Bool = false, connectionOptions: Set<ConnectionOption> = []) {
         self.id = UUID()
         self.name = name
         self.agentType = agentType
         self.createdAt = createdAt
         self.nodeCount = nodeCount
         self.isActive = isActive
+        self.connectionOptions = connectionOptions
+    }
+}
+
+// MARK: - Connection Option Enum
+
+enum ConnectionOption: String, Hashable, Codable {
+    case bluetooth
+    case localhost
+    case arp
+    case internet
+    case satellite
+    
+    var displayName: String {
+        switch self {
+        case .bluetooth: return "Bluetooth"
+        case .localhost: return "Localhost"
+        case .arp: return "ARP"
+        case .internet: return "Internet"
+        case .satellite: return "Satellite"
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .bluetooth: return "bluetooth"
+        case .localhost: return "server.rack"
+        case .arp: return "network"
+        case .internet: return "globe"
+        case .satellite: return "satellite"
+        }
     }
 }
 
@@ -285,6 +323,9 @@ enum AgentType: String, Codable {
     case connection = "connection"
     case counterintelligence = "counterintelligence"
     case security = "security"
+    case intelligence = "intelligence"
+    case analysis = "analysis"
+    case monitoring = "monitoring"
     
     var displayName: String {
         switch self {
@@ -292,6 +333,9 @@ enum AgentType: String, Codable {
         case .connection: return "Connection"
         case .counterintelligence: return "Counterintelligence"
         case .security: return "Security"
+        case .intelligence: return "Intelligence"
+        case .analysis: return "Analysis"
+        case .monitoring: return "Monitoring"
         }
     }
     
@@ -301,6 +345,9 @@ enum AgentType: String, Codable {
         case .connection: return "network"
         case .counterintelligence: return "shield"
         case .security: return "lock.shield"
+        case .intelligence: return "brain"
+        case .analysis: return "chart.bar"
+        case .monitoring: return "chart.line.uptrend.xyaxis"
         }
     }
     
@@ -310,6 +357,9 @@ enum AgentType: String, Codable {
         case .connection: return .green
         case .counterintelligence: return .orange
         case .security: return .red
+        case .intelligence: return .purple
+        case .analysis: return .cyan
+        case .monitoring: return .yellow
         }
     }
 }
