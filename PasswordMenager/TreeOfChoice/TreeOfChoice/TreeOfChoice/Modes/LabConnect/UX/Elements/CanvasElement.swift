@@ -81,9 +81,9 @@ struct CanvasElementView: View {
                     }
                     .frame(width: screenGeometry.size.width - 10, height: frameHeight) // -10 za padding lijevo/desno
                     .overlay(
-                        // Visible border
+                        // Visible border - tanja linija na 75% prozirnosti
                         RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.white.opacity(0.5), lineWidth: 2)
+                            .stroke(Color(red: 1.0, green: 0.36, blue: 0.0).opacity(0.75), lineWidth: 1)
                     )
                     .cornerRadius(8)
                     .padding(.leading, 5) // 5px od lijeve bijele linije

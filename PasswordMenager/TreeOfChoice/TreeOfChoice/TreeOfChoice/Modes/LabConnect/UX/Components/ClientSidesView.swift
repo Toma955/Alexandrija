@@ -47,12 +47,8 @@ struct ClientSidesView: View {
                         Spacer()
                     }
                     .frame(width: squareWidth, height: squareHeight) // 285x345px
-                    .background(Color.gray.opacity(0.2))
+                    .background(Color(white: 0.15))
                     .cornerRadius(12)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.gray, lineWidth: 2)
-                    )
                     .zIndex(1) // Background je najniži
                     
                     // View-ovi unutar cijelog okvira - iza control panela
@@ -88,6 +84,7 @@ struct ClientSidesView: View {
                             clientName: isLeftSide ? "Client A" : "Client B"
                         )
                         .frame(height: 60) // Visina za panel
+                        .offset(y: 30) // Spusti za 30 piksela dolje
                     }
                     .frame(width: squareWidth, height: squareHeight)
                     .zIndex(20) // Iznad view-ova

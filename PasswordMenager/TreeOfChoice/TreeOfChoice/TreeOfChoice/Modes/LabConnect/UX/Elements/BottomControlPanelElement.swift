@@ -107,17 +107,13 @@ struct BottomControlPanelView: View {
             .zIndex(1) // Ispod control panela
             .transition(.opacity.combined(with: .scale(scale: 0.95)))
             
-            // Control panel na dnu - pozicioniran na sredini donje narančaste crte kvadrata
+            // Control panel na dnu
             VStack {
                 Spacer()
-                HStack {
-                    Spacer()
-                    animatedOrangeButton
-                        .offset(y: 5) // Pomaknut 5px prema dolje - donja strana elementa je podignuta prema gore
-                    Spacer()
-                }
+                animatedOrangeButton
+                    .padding(.bottom, 20)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .zIndex(10) // Iznad mode view-ova
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: bottomControlPanel.isGameMode)
@@ -126,7 +122,7 @@ struct BottomControlPanelView: View {
     // MARK: - Animated Orange Button
     
     private var animatedOrangeButton: some View {
-        ZStack(alignment: .center) {
+        ZStack {
             // Background - mali obli kvadrat koji raste u polukrug kada je expanded
             // Button se aktivira samo kada je collapsed - kada je expanded, ne smije se zatvoriti osim preko collapse botuna
             if !bottomControlPanel.isExpanded {
@@ -153,10 +149,9 @@ struct BottomControlPanelView: View {
                     .frame(width: 320, height: 60) // Smanjena visina da bude samo malo veći
             }
             
-            // Kontrole unutar expanded kvadrata - centrirane
+            // Kontrole unutar expanded kvadrata
             if bottomControlPanel.isExpanded {
                 expandedControls
-                    .frame(maxWidth: .infinity)
                     .transition(.opacity.combined(with: .scale(scale: 0.9)))
             }
         }
@@ -188,9 +183,8 @@ struct BottomControlPanelView: View {
     // MARK: - Expanded Controls
     
     private var expandedControls: some View {
-        // Sve u jednom redu: Toggle switch + 4 kvadratna botuna - centrirano
+        // Sve u jednom redu: Toggle switch + 4 kvadratna botuna
         HStack(spacing: 16) { // Smanjen spacing jer je sve kompaktnije
-            Spacer()
             // Custom Toggle switch s 2 ikone unutra (bijele ikone)
             ZStack {
                 // Pozadina toggle switcha - polukrug (capsule), maksimalno zaobljeni rubovi, malo veći
@@ -339,8 +333,6 @@ struct BottomControlPanelView: View {
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
-            
-            Spacer()
         }
         .padding(.horizontal, 12) // Povećan horizontalni padding
         .padding(.vertical, 8) // Povećan vertikalni padding za elegantniji izgled

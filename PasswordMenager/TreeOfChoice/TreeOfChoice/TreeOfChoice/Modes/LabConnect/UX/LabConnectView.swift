@@ -238,7 +238,7 @@ struct LabConnectView: View {
                                 .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 2)
                             
                             // Sadržaj prozora (bez control panela)
-                            TrackModeView(isEditMode: $bottomControlPanel.isEditMode, canvasElement: canvasElement)
+                            TrackModeView(isEditMode: $bottomControlPanel.isEditMode)
                                 .id("trackMode")
                                 .padding(4) // Mali padding da sadržaj ne ide do ruba
                         }
@@ -257,13 +257,9 @@ struct LabConnectView: View {
                         ZStack {
                             // Background
                             Rectangle()
-                                .fill(Color.gray.opacity(0.2))
+                                .fill(Color(white: 0.15))
                                 .frame(width: squareWidth, height: squareHeight)
                                 .cornerRadius(12)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.gray, lineWidth: 2)
-                                )
                             
                             // Bottom Control Panel Content (s view-ovima i control panelom)
                             BottomControlPanelView(bottomControlPanel: bottomControlPanel, canvasElement: canvasElement)
@@ -284,7 +280,7 @@ struct LabConnectView: View {
     private var sessionStarterPanel: some View {
         SessionStarterElementView(sessionStarterElement: sessionStarterElement)
             .frame(width: 280, height: 200) // Iste dimenzije kao actionButtonsPanel
-            .background(Color.gray.opacity(0.3))
+            .background(Color(white: 0.15))
             .cornerRadius(16)
     }
     
@@ -341,7 +337,7 @@ struct LabConnectView: View {
         }
         .padding(10)
         .frame(width: 280, height: 200) // Ista visina kao ComponentPaletteView: 200px
-        .background(Color(red: 0x1A/255.0, green: 0x1A/255.0, blue: 0x1A/255.0))
+        .background(Color.gray.opacity(0.3))
         .cornerRadius(16)
     }
 }

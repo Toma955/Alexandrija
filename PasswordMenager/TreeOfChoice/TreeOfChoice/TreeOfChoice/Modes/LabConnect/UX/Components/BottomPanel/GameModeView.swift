@@ -32,26 +32,18 @@ struct GameModeView: View {
     
     private var emptyState: some View {
         ZStack {
-            // Pozadina - originalne dimenzije
-            Color.black.opacity(0.95)
+            // Pozadina - siva umjesto crne
+            Color(white: 0.15)
                 .cornerRadius(12)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color(red: 1.0, green: 0.36, blue: 0.0), lineWidth: 2)
-                )
             
             VStack(spacing: 12) {
-                Spacer()
                 Image(systemName: "plus.circle.dashed")
                     .font(.system(size: 48))
                     .foregroundColor(.white.opacity(0.3))
                 Text("No elements")
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.5))
-                    .multilineTextAlignment(.center)
-                Spacer()
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
@@ -66,41 +58,33 @@ private struct GameModeContentView: View {
     
     var body: some View {
         ZStack {
-            // Pozadina - originalne dimenzije
-            Color.black.opacity(0.95)
+            // Pozadina - siva umjesto crne
+            Color(white: 0.15)
                 .cornerRadius(12)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color(red: 1.0, green: 0.36, blue: 0.0), lineWidth: 2)
-                )
             
             // Horizontalni scroll s elementima - centrirano
-            let elements = topology.components.filter { component in
-                component.isClientA != true && component.isClientB != true
-            }
-            
-            if elements.isEmpty {
-                // Centriran "No elements" kada nema elemenata
-                VStack(spacing: 12) {
-                    Spacer()
-                    Image(systemName: "plus.circle.dashed")
-                        .font(.system(size: 48))
-                        .foregroundColor(.white.opacity(0.3))
-                    Text("No elements")
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.5))
-                        .multilineTextAlignment(.center)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                // Horizontalni scroll s elementima
-                GeometryReader { geometry in
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(alignment: .center, spacing: 16) {
-                            // Spacer na početku za centriranje
-                            Spacer()
-                            
+            GeometryReader { geometry in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .center, spacing: 16) {
+                        let elements = topology.components.filter { component in
+                            component.isClientA != true && component.isClientB != true
+                        }
+                        
+                        // Spacer na početku za centriranje
+                        Spacer()
+                        
+                        if elements.isEmpty {
+                            VStack(spacing: 12) {
+                                Image(systemName: "plus.circle.dashed")
+                                    .font(.system(size: 48))
+                                    .foregroundColor(.white.opacity(0.3))
+                                Text("No elements")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.5))
+                            }
+                            .frame(minWidth: 200)
+                            .padding(.vertical, 40)
+                        } else {
                             // Prikaži elemente iz topologije horizontalno
                             ForEach(elements) { component in
                                 GameModeElementView(component: component)
@@ -116,17 +100,17 @@ private struct GameModeContentView: View {
                                         }
                                     }
                             }
-                            
-                            // Spacer na kraju za centriranje
-                            Spacer()
                         }
-                        .frame(minWidth: geometry.size.width) // Osiguraj da HStack zauzima punu širinu
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 4) // Minimalni padding vertikalno da elementi se protežu prema gore i dolje
+                        
+                        // Spacer na kraju za centriranje
+                        Spacer()
                     }
+                    .frame(minWidth: geometry.size.width) // Osiguraj da HStack zauzima punu širinu
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 4) // Minimalni padding vertikalno da elementi se protežu prema gore i dolje
                 }
-                .frame(maxHeight: .infinity) // Omogući proširenje prema gore i dolje
             }
+            .frame(maxHeight: .infinity) // Omogući proširenje prema gore i dolje
         }
     }
 }

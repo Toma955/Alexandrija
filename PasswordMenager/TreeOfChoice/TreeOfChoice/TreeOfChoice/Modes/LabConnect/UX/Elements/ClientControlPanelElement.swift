@@ -73,8 +73,7 @@ struct ClientControlPanelView: View {
         VStack {
             Spacer()
             animatedOrangeButton
-                .padding(.bottom, 10)
-                .offset(y: 25) // Pomaknut 25px prema dolje da ide ispod linije
+                .padding(.bottom, 15)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

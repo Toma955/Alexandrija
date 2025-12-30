@@ -51,11 +51,7 @@ struct GameModeElementView: View {
         .frame(maxHeight: .infinity) // Širi i proteže se prema gore i dolje
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color.black)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(accentOrange, lineWidth: 2)
-                )
+                .fill(Color(white: 0.15))
         )
     }
     
