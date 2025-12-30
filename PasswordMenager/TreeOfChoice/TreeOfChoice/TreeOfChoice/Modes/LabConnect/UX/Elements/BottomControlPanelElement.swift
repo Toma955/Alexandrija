@@ -99,7 +99,7 @@ struct BottomControlPanelView: View {
                     GameModeView(canvasElement: canvasElement)
                         .id("gameMode") // ID za pravilnu animaciju
                 } else {
-                    TrackModeView(isEditMode: .constant(false), canvasElement: canvasElement)
+                    TrackModeView(isEditMode: $bottomControlPanel.isEditMode, canvasElement: canvasElement)
                         .id("trackMode") // ID za pravilnu animaciju
                 }
             }

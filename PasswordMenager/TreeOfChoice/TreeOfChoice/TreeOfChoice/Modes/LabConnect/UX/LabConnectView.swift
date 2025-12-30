@@ -217,12 +217,12 @@ struct LabConnectView: View {
                         // Edit mode u Track mode-u - prozor i control panel odvojeno
                         // Prozor - samo sadržaj (TrackModeView)
                         ZStack {
-                            // Background siva boja bez obruba
+                            // Background crna boja bez obruba
                             RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.gray.opacity(0.3))
+                                .fill(Color.black)
                             
                             // Sadržaj prozora (bez control panela)
-                            TrackModeView(isEditMode: $bottomControlPanel.isEditMode)
+                            TrackModeView(isEditMode: $bottomControlPanel.isEditMode, canvasElement: canvasElement)
                                 .id("trackMode")
                                 .padding(4) // Mali padding da sadržaj ne ide do ruba
                         }

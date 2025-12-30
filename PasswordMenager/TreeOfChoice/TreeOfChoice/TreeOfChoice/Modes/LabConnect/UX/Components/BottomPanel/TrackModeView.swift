@@ -41,25 +41,26 @@ struct TrackModeView: View {
     @State private var dragLocation: CGPoint = .zero // Lokacija miša tijekom drag-a
     @State private var isDragging: Bool = false // Stanje drag-a
     
+    // Playback controls za Use Mode
+    @State private var isPlaying: Bool = false
+    @State private var isAutoMode: Bool = false
+    @State private var currentTime: Int = 0 // Trenutna pozicija na timeline-u (0-200)
+    @State private var playbackTask: Task<Void, Never>?
+    
     init(isEditMode: Binding<Bool> = .constant(false), canvasElement: CanvasElement? = nil) {
         self._isEditMode = isEditMode
         self.canvasElement = canvasElement
     }
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Top bar - narančasti kvadrat s close, upload i save
-            topBar
-            
-            // Main content - dva kvadrata s paddingom
-            HStack(spacing: 12) {
-                // Mali kvadrat od vrha do dna (lijevo)
-                leftPanel
-                
-                // Veliki kvadrat koji zauzima većinu ekrana (desno)
-                rightPanel
+        Group {
+            if isEditMode {
+                // EDIT MODE - kvadrati, drag & drop, top bar
+                editModeView
+            } else {
+                // USE MODE - krugovi u liniji, kontrolni botuni
+                useModeView
             }
-            .padding(12) // Padding od ruba
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .fileImporter(
@@ -88,6 +89,45 @@ struct TrackModeView: View {
             case .failure(let error):
                 saveError = error.localizedDescription
             }
+        }
+        .onDisappear {
+            // Zaustavi playback kada se view zatvori
+            stopPlayback()
+        }
+    }
+    
+    // MARK: - Edit Mode View
+    
+    private var editModeView: some View {
+        VStack(spacing: 0) {
+            // Top bar - narančasti kvadrat s close, upload i save
+            topBar
+            
+            // Main content - dva kvadrata s paddingom
+            HStack(spacing: 12) {
+                // Mali kvadrat od vrha do dna (lijevo)
+                leftPanel
+                
+                // Veliki kvadrat koji zauzima većinu ekrana (desno) - s drag & drop
+                rightPanel
+            }
+            .padding(12) // Padding od ruba
+        }
+    }
+    
+    // MARK: - Use Mode View
+    
+    private var useModeView: some View {
+        VStack(spacing: 0) {
+            // Main content - samo veliki kvadrat (bez lijevog panela)
+            HStack(spacing: 12) {
+                // Veliki kvadrat - krugovi u liniji s povezujućom linijom
+                rightPanelUseMode
+            }
+            .padding(12) // Padding od ruba
+            
+            // Control buttons na dnu
+            useModeControls
         }
     }
     
@@ -288,6 +328,116 @@ struct TrackModeView: View {
         return topologyElements.first { $0.id == id }
     }
     
+    /// Vraća sortirane track items po startTime (za Use Mode - linija)
+    private var sortedTrackItems: [TrackItem] {
+        trackItems.sorted { $0.startTime < $1.startTime }
+    }
+    
+    /// Vraća komponente za track items
+    private func getComponentsForItems(_ items: [TrackItem]) -> [NetworkComponent] {
+        items.compactMap { getComponent(by: $0.componentId) }
+    }
+    
+    // MARK: - Playback Functions
+    
+    private func togglePlayback() {
+        if isPlaying {
+            stopPlayback()
+        } else {
+            startPlayback()
+        }
+    }
+    
+    private func startPlayback() {
+        isPlaying = true
+        playbackTask = Task {
+            while isPlaying && currentTime < 200 {
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 sekundi
+                
+                if !isPlaying { break }
+                
+                await MainActor.run {
+                    currentTime += 1
+                    if currentTime >= 200 {
+                        currentTime = 200
+                        stopPlayback()
+                    }
+                }
+            }
+        }
+    }
+    
+    private func stopPlayback() {
+        isPlaying = false
+        playbackTask?.cancel()
+        playbackTask = nil
+    }
+    
+    private func nextStep() {
+        stopPlayback()
+        // Pronađi sljedeći element na timeline-u
+        let nextItem = sortedTrackItems.first { $0.startTime > currentTime }
+        if let next = nextItem {
+            currentTime = next.startTime
+        } else {
+            currentTime = min(200, currentTime + 10)
+        }
+    }
+    
+    private func previousStep() {
+        stopPlayback()
+        // Pronađi prethodni element na timeline-u
+        let previousItem = sortedTrackItems.last { $0.startTime < currentTime }
+        if let previous = previousItem {
+            currentTime = previous.startTime
+        } else {
+            currentTime = max(0, currentTime - 10)
+        }
+    }
+    
+    private func continuePlayback() {
+        if !isPlaying {
+            startPlayback()
+        }
+    }
+    
+    private func toggleAutoMode() {
+        isAutoMode.toggle()
+        if isAutoMode {
+            // Auto mode - automatski prelazi na sljedeći element
+            startAutoPlayback()
+        } else {
+            stopAutoPlayback()
+        }
+    }
+    
+    private func startAutoPlayback() {
+        // Auto playback - automatski prelazi kroz elemente
+        playbackTask = Task {
+            for item in sortedTrackItems {
+                if !isAutoMode { break }
+                
+                await MainActor.run {
+                    currentTime = item.startTime
+                }
+                
+                // Čekaj dok se element izvršava (duration je u timeline jedinicama, 1 jedinica = 0.1 sekunde)
+                let waitTime = UInt64(item.duration) * 100_000_000 // 0.1 sekundi po jedinici
+                try? await Task.sleep(nanoseconds: waitTime)
+            }
+            
+            await MainActor.run {
+                isAutoMode = false
+                currentTime = 200 // Kraj timeline-a
+            }
+        }
+    }
+    
+    private func stopAutoPlayback() {
+        playbackTask?.cancel()
+        playbackTask = nil
+    }
+    
     /// Rukuje drop-om elementa na track
     private func handleDrop(component: NetworkComponent, trackIndex: Int, location: CGPoint, geometry: GeometryProxy) {
         // Izračunaj startTime na temelju lokacije
@@ -334,7 +484,209 @@ struct TrackModeView: View {
         isDragging = false
     }
     
-    // MARK: - Right Panel (veliki kvadrat)
+    // MARK: - Left Panel Read-Only (Use Mode)
+    
+    private var leftPanelReadOnly: some View {
+        VStack(spacing: 0) {
+            // Header - "Topology Elements"
+            HStack {
+                Text("Elements")
+                    .font(.caption.bold())
+                    .foregroundColor(.white.opacity(0.8))
+                Spacer()
+                Text("\(topologyElements.count)")
+                    .font(.caption2)
+                    .foregroundColor(.white.opacity(0.6))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.black.opacity(0.3))
+            
+            // Scrollable content area s elementima topologije (read-only)
+            ScrollView {
+                VStack(spacing: 8) {
+                    if topologyElements.isEmpty {
+                        // Empty state
+                        VStack(spacing: 8) {
+                            Image(systemName: "network")
+                                .font(.title2)
+                                .foregroundColor(.white.opacity(0.3))
+                            Text("No elements")
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.5))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 40)
+                    } else {
+                        // Lista elemenata (read-only, bez drag & drop)
+                        ForEach(topologyElements) { component in
+                            TopologyElementReadOnlyView(component: component)
+                        }
+                    }
+                }
+                .padding(.vertical, 8)
+                .padding(.horizontal, 8)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.gray.opacity(0.3))
+        )
+        .frame(width: 200) // Fiksna širina za mali kvadrat
+    }
+    
+    // MARK: - Right Panel Use Mode (krugovi u liniji)
+    
+    private var rightPanelUseMode: some View {
+        VStack(spacing: 0) {
+            // Timeline na vrhu s brojevima
+            timelineHeader
+            
+            // Scrollable content area s krugovima u liniji - centrirano vertikalno
+            GeometryReader { geometry in
+                VStack {
+                    Spacer()
+                    
+                    ScrollView {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            ZStack {
+                                // Tamna traka (background track polje)
+                                Rectangle()
+                                    .fill(Color.black.opacity(0.5))
+                                    .frame(height: 120)
+                                    .frame(minWidth: 2000)
+                                
+                                // Krugovi s elementima u liniji s povezujućom linijom
+                                if !sortedTrackItems.isEmpty {
+                                    UseModeElementsView(
+                                        items: sortedTrackItems,
+                                        components: getComponentsForItems(sortedTrackItems),
+                                        trackWidth: 2000,
+                                        currentTime: currentTime
+                                    )
+                                }
+                            }
+                            .frame(height: 120)
+                            .frame(minWidth: 2000)
+                        }
+                    }
+                    .frame(height: 120)
+                    
+                    Spacer()
+                }
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.gray.opacity(0.3))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color(red: 1.0, green: 0.36, blue: 0.0), lineWidth: 2)
+                )
+        )
+        .frame(maxWidth: .infinity) // Zauzima preostali prostor
+    }
+    
+    // MARK: - Use Mode Controls
+    
+    private var useModeControls: some View {
+        HStack(spacing: 16) {
+            // Previous button
+            Button(action: {
+                previousStep()
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "backward.fill")
+                        .font(.title3)
+                    Text("Previous")
+                        .font(.caption)
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Color(red: 1.0, green: 0.36, blue: 0.0))
+                .cornerRadius(8)
+            }
+            .buttonStyle(.plain)
+            
+            // Play/Pause button
+            Button(action: {
+                togglePlayback()
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                        .font(.title3)
+                    Text(isPlaying ? "Pause" : "Play")
+                        .font(.caption)
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Color(red: 1.0, green: 0.36, blue: 0.0))
+                .cornerRadius(8)
+            }
+            .buttonStyle(.plain)
+            
+            // Skip (Next) button
+            Button(action: {
+                nextStep()
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "forward.fill")
+                        .font(.title3)
+                    Text("Skip")
+                        .font(.caption)
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Color(red: 1.0, green: 0.36, blue: 0.0))
+                .cornerRadius(8)
+            }
+            .buttonStyle(.plain)
+            
+            // Continue button
+            Button(action: {
+                continuePlayback()
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.right.circle.fill")
+                        .font(.title3)
+                    Text("Continue")
+                        .font(.caption)
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Color(red: 1.0, green: 0.36, blue: 0.0))
+                .cornerRadius(8)
+            }
+            .buttonStyle(.plain)
+            
+            // Auto button
+            Button(action: {
+                toggleAutoMode()
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: isAutoMode ? "repeat.circle.fill" : "repeat.circle")
+                        .font(.title3)
+                    Text("Auto")
+                        .font(.caption)
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(isAutoMode ? Color.green : Color(red: 1.0, green: 0.36, blue: 0.0))
+                .cornerRadius(8)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Color.black.opacity(0.3))
+    }
+    
+    // MARK: - Right Panel (veliki kvadrat) - Edit Mode
     
     private var rightPanel: some View {
         VStack(spacing: 0) {
@@ -847,5 +1199,144 @@ struct TrackDropDelegate: DropDelegate {
     
     func dropExited(info: DropInfo) {
         // Može se koristiti za visual feedback
+    }
+}
+
+// MARK: - Use Mode Elements View
+
+/// View za prikaz elemenata u Use Mode-u - krugovi u liniji s povezujućom linijom
+struct UseModeElementsView: View {
+    let items: [TrackItem]
+    let components: [NetworkComponent]
+    let trackWidth: CGFloat
+    let currentTime: Int
+    
+    private let accentOrange = Color(red: 1.0, green: 0.36, blue: 0.0)
+    private let pixelsPerUnit: CGFloat = 10 // 10px = 1 timeline unit
+    
+    var body: some View {
+        ZStack(alignment: .leading) {
+            // Povezujuća linija između krugova
+            if items.count > 1 {
+                Path { path in
+                    for (index, item) in items.enumerated() {
+                        let xPosition = CGFloat(item.startTime) * pixelsPerUnit
+                        let yPosition: CGFloat = 25 // Centar tracka
+                        
+                        if index == 0 {
+                            path.move(to: CGPoint(x: xPosition, y: yPosition))
+                        } else {
+                            path.addLine(to: CGPoint(x: xPosition, y: yPosition))
+                        }
+                    }
+                }
+                .stroke(accentOrange, lineWidth: 2)
+            }
+            
+            // Krugovi s elementima
+            ForEach(Array(zip(items, components)), id: \.0.id) { item, component in
+                let xPosition = CGFloat(item.startTime) * pixelsPerUnit
+                
+                ZStack {
+                    // Krug
+                    Circle()
+                        .fill(accentOrange)
+                        .frame(width: 40, height: 40)
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white.opacity(0.3), lineWidth: 2)
+                        )
+                    
+                    // Ikona unutar kruga
+                    iconView(for: component)
+                        .frame(width: 24, height: 24)
+                        .foregroundColor(.white)
+                }
+                .position(x: xPosition, y: 25) // Centar na y=25 (sredina tracka)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func iconView(for component: NetworkComponent) -> some View {
+        if ComponentIconHelper.hasCustomIcon(for: component.componentType),
+           let customIconName = ComponentIconHelper.customIconName(for: component.componentType),
+           let customImage = ComponentIconHelper.loadCustomIcon(named: customIconName) {
+            Image(nsImage: customImage)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+        } else {
+            Image(systemName: ComponentIconHelper.icon(for: component.componentType))
+                .font(.system(size: 16, weight: .medium))
+        }
+    }
+}
+
+// MARK: - TopologyElementReadOnlyView
+
+/// View za prikaz jednog elementa iz topologije u listi (read-only, bez drag & drop)
+struct TopologyElementReadOnlyView: View {
+    @ObservedObject var component: NetworkComponent
+    
+    private let accentOrange = Color(red: 1.0, green: 0.36, blue: 0.0)
+    
+    var body: some View {
+        HStack(spacing: 10) {
+            // Ikona + naziv (bez drag funkcionalnosti)
+            HStack(spacing: 10) {
+                // Ikona elementa
+                iconView
+                    .frame(width: 32, height: 32)
+                
+                // Naziv elementa
+                Text(component.name)
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.9))
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            
+            // Okrugli botun sa strelicom prema dole
+            Button(action: {
+                // TODO: Implement action
+            }) {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 20, height: 20)
+                    .background(Color.black.opacity(0.3))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(accentOrange)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                )
+        )
+    }
+    
+    @ViewBuilder
+    private var iconView: some View {
+        if ComponentIconHelper.hasCustomIcon(for: component.componentType),
+           let customIconName = ComponentIconHelper.customIconName(for: component.componentType),
+           let customImage = ComponentIconHelper.loadCustomIcon(named: customIconName) {
+            Image(nsImage: customImage)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 24, height: 24)
+                .foregroundColor(.white.opacity(0.9))
+        } else {
+            Image(systemName: ComponentIconHelper.icon(for: component.componentType))
+                .font(.system(size: 18, weight: .medium))
+                .foregroundColor(.white.opacity(0.9))
+        }
     }
 }
