@@ -1,11 +1,16 @@
 // App/Shell/AppView.swift
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 struct AppView: View {
     @EnvironmentObject private var localization: LocalizationManager
     @EnvironmentObject private var appSettings: AppSettings
+    @StateObject private var sessionStore = SessionStore()
     @State private var selectedMode: AppMode?
     @State private var showSettings = false
+    @State private var showAbout = false
     
     enum AppMode {
         case labConnect
@@ -36,6 +41,10 @@ struct AppView: View {
                 .environmentObject(localization)
                 .environmentObject(appSettings)
         }
+        .sheet(isPresented: $showAbout) {
+            AboutView()
+                .environmentObject(localization)
+        }
     }
     
     private var homeView: some View {
@@ -58,18 +67,50 @@ struct AppView: View {
                     
                     Spacer()
                     
-                    // Settings button
-                    Button(action: {
-                        showSettings = true
-                    }) {
-                        Image(systemName: "gearshape.fill")
-                            .font(.title3)
-                            .foregroundColor(.white.opacity(0.8))
-                            .padding(8)
-                            .background(Color.white.opacity(0.1))
-                            .cornerRadius(8)
+                    // Action buttons
+                    HStack(spacing: 12) {
+                        // About button
+                        Button(action: {
+                            showAbout = true
+                        }) {
+                            Image(systemName: "info.circle.fill")
+                                .font(.title3)
+                                .foregroundColor(.white.opacity(0.8))
+                                .padding(8)
+                                .background(Color.white.opacity(0.1))
+                                .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
+                        .help("About")
+                        
+                        // Settings button
+                        Button(action: {
+                            showSettings = true
+                        }) {
+                            Image(systemName: "gearshape.fill")
+                                .font(.title3)
+                                .foregroundColor(.white.opacity(0.8))
+                                .padding(8)
+                                .background(Color.white.opacity(0.1))
+                                .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Settings")
+                        
+                        // Exit button
+                        Button(action: {
+                            exitApplication()
+                        }) {
+                            Image(systemName: "power")
+                                .font(.title3)
+                                .foregroundColor(.white.opacity(0.8))
+                                .padding(8)
+                                .background(Color.white.opacity(0.1))
+                                .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Exit")
                     }
-                    .buttonStyle(.plain)
                 }
 
                 // 7 komponenti (4 moda + Tree Library + Proces + Info)
@@ -81,6 +122,7 @@ struct AppView: View {
                         iconName: "Lab",
                         accentColor: accentOrange,
                         action: {
+                            sessionStore.createSession(modeType: .labConnect)
                             selectedMode = .labConnect
                         }
                     )
@@ -93,6 +135,7 @@ struct AppView: View {
                         iconName: "SecurityLab",
                         accentColor: accentOrange,
                         action: {
+                            sessionStore.createSession(modeType: .labSecurity)
                             selectedMode = .labSecurity
                         }
                     )
@@ -105,6 +148,7 @@ struct AppView: View {
                         iconName: "Conection",
                         accentColor: accentOrange,
                         action: {
+                            sessionStore.createSession(modeType: .realConnect)
                             selectedMode = .realConnect
                         }
                     )
@@ -117,6 +161,7 @@ struct AppView: View {
                         iconName: "SecurityLab",
                         accentColor: accentOrange,
                         action: {
+                            sessionStore.createSession(modeType: .realSecurity)
                             selectedMode = .realSecurity
                         }
                     )
@@ -129,6 +174,7 @@ struct AppView: View {
                         iconName: "decision",
                         accentColor: accentOrange,
                         action: {
+                            sessionStore.createSession(modeType: .treeLibrary)
                             selectedMode = .treeLibrary
                         }
                     )
@@ -141,6 +187,7 @@ struct AppView: View {
                         iconName: "Watchtower_icon",
                         accentColor: accentOrange,
                         action: {
+                            sessionStore.createSession(modeType: .watchmen)
                             // TODO: Implement Watchmen action
                         }
                     )
@@ -153,6 +200,7 @@ struct AppView: View {
                         iconName: "decision",
                         accentColor: accentOrange,
                         action: {
+                            sessionStore.createSession(modeType: .treeCreator)
                             selectedMode = .treeCreator
                         }
                     )
@@ -163,6 +211,15 @@ struct AppView: View {
                 FilesPanel()
                     .environmentObject(localization)
                     .frame(maxWidth: .infinity)
+                
+                // Active Sessions
+                ActiveSessionsView(sessionStore: sessionStore) { session in
+                    // Otvori sesiju - mapiraj SessionModeType na AppMode
+                    if let mode = mapSessionModeToAppMode(session.modeType) {
+                        selectedMode = mode
+                    }
+                }
+                .frame(maxWidth: .infinity)
 
                 Spacer()
             }
@@ -193,6 +250,26 @@ struct AppView: View {
         case .treeLibrary: return .treeLibrary
         case .treeCreator: return .treeCreator
         }
+    }
+    
+    private func mapSessionModeToAppMode(_ sessionMode: SessionModeType) -> AppMode? {
+        switch sessionMode {
+        case .labConnect: return .labConnect
+        case .labSecurity: return .labSecurity
+        case .realConnect: return .realConnect
+        case .realSecurity: return .realSecurity
+        case .treeLibrary: return .treeLibrary
+        case .treeCreator: return .treeCreator
+        case .watchmen: return nil // Watchmen nema AppMode još
+        }
+    }
+    
+    private func exitApplication() {
+        #if os(macOS)
+        NSApplication.shared.terminate(nil)
+        #else
+        exit(0)
+        #endif
     }
 }
 

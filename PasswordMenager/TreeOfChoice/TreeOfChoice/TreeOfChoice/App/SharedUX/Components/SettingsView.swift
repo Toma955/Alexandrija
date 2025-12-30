@@ -15,6 +15,7 @@ struct SettingsView: View {
     @EnvironmentObject private var localization: LocalizationManager
     @EnvironmentObject private var appSettings: AppSettings
     @Environment(\.dismiss) private var dismiss
+    @State private var showAbout = false
     
     private let accentOrange = Color(red: 1.0, green: 0.36, blue: 0.0)
     
@@ -49,12 +50,22 @@ struct SettingsView: View {
                     
                     // Language settings
                     languageSettingsSection
+                    
+                    Divider()
+                        .background(Color.white.opacity(0.2))
+                    
+                    // About and Exit buttons
+                    aboutAndExitSection
                 }
                 .padding(24)
             }
         }
         .frame(width: 600, height: 500)
         .background(Color.black.opacity(0.95))
+        .sheet(isPresented: $showAbout) {
+            AboutView()
+                .environmentObject(localization)
+        }
     }
     
     // MARK: - Sections
@@ -148,6 +159,44 @@ struct SettingsView: View {
         }
     }
     
+    private var aboutAndExitSection: some View {
+        HStack(spacing: 16) {
+            // About button
+            Button(action: {
+                showAbout = true
+            }) {
+                HStack {
+                    Image(systemName: "info.circle")
+                    Text("About")
+                }
+                .font(.subheadline)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(accentOrange.opacity(0.8))
+                .cornerRadius(8)
+            }
+            .buttonStyle(.plain)
+            
+            // Exit button
+            Button(action: {
+                exitApplication()
+            }) {
+                HStack {
+                    Image(systemName: "power")
+                    Text("Exit")
+                }
+                .font(.subheadline)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color.red.opacity(0.8))
+                .cornerRadius(8)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    
     // MARK: - Actions
     
     private func toggleFullscreen(_ isFullscreen: Bool) {
@@ -162,6 +211,86 @@ struct SettingsView: View {
             }
         }
         #endif
+    }
+    
+    private func exitApplication() {
+        #if os(macOS)
+        NSApplication.shared.terminate(nil)
+        #else
+        exit(0)
+        #endif
+    }
+}
+
+// MARK: - About View
+
+struct AboutView: View {
+    @EnvironmentObject private var localization: LocalizationManager
+    @Environment(\.dismiss) private var dismiss
+    
+    private let accentOrange = Color(red: 1.0, green: 0.36, blue: 0.0)
+    
+    var body: some View {
+        VStack(spacing: 24) {
+            // Header
+            HStack {
+                Text("About TreeOfChoice")
+                    .font(.title2.bold())
+                    .foregroundColor(.white)
+                
+                Spacer()
+                
+                Button(action: {
+                    dismiss()
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.white.opacity(0.7))
+                }
+            }
+            .padding(24)
+            .background(Color.black.opacity(0.6))
+            
+            // Content
+            VStack(spacing: 20) {
+                // App icon/logo placeholder
+                Image(systemName: "tree")
+                    .font(.system(size: 64))
+                    .foregroundColor(accentOrange)
+                
+                // App name
+                Text("TreeOfChoice")
+                    .font(.title.bold())
+                    .foregroundColor(.white)
+                
+                // Version
+                if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+                    Text("Version \(version)")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.7))
+                }
+                
+                Divider()
+                    .background(Color.white.opacity(0.2))
+                
+                // Description
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Decision Tree Management System")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    Text("A powerful tool for creating, managing, and simulating decision trees for agent-based systems.")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, 24)
+                
+                Spacer()
+            }
+            .padding(24)
+        }
+        .frame(width: 500, height: 400)
+        .background(Color.black.opacity(0.95))
     }
 }
 
