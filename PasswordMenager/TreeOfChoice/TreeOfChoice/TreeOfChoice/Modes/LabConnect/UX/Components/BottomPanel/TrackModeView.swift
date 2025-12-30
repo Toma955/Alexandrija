@@ -214,7 +214,7 @@ struct TrackModeView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(Color(white: 0.15))
+        .background(Color.black.opacity(0.3))
     }
     
     // MARK: - Left Panel (mali kvadrat) - Lista elemenata topologije
@@ -233,7 +233,7 @@ struct TrackModeView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(Color(white: 0.15))
+            .background(Color.black.opacity(0.3))
             
             // Scrollable content area s elementima topologije
             ScrollView {
@@ -263,7 +263,7 @@ struct TrackModeView: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(white: 0.15))
+                .fill(Color.gray.opacity(0.3))
         )
         .frame(width: 200) // Fiksna širina za mali kvadrat
     }
@@ -433,7 +433,7 @@ struct TrackModeView: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(white: 0.15))
+                .fill(Color.gray.opacity(0.3))
         )
         .frame(maxWidth: .infinity) // Zauzima preostali prostor
     }
@@ -455,7 +455,7 @@ struct TrackModeView: View {
             }
             .frame(height: 20) // Visina slidera
         }
-        .background(Color(white: 0.15))
+        .background(Color.black.opacity(0.3))
     }
     
     // MARK: - Timeline Header
@@ -504,7 +504,7 @@ struct TrackModeView: View {
             Divider()
                 .background(Color.white.opacity(0.3))
         }
-        .background(Color(white: 0.15))
+        .background(Color.black.opacity(0.4))
     }
 }
 
@@ -662,7 +662,7 @@ struct TopologyElementListItem: View {
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.white)
                     .frame(width: 20, height: 20)
-                    .background(Color(white: 0.15))
+                    .background(Color.black.opacity(0.3))
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
@@ -673,6 +673,10 @@ struct TopologyElementListItem: View {
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(accentOrange)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                )
         )
     }
     
@@ -730,6 +734,10 @@ struct TrackItemView: View {
         .background(
             RoundedRectangle(cornerRadius: 6)
                 .fill(accentOrange)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                )
         )
         .position(x: xPosition + (width / 2), y: 25) // Centar na y=25 (sredina tracka)
     }
@@ -783,6 +791,10 @@ struct TrackDragPreview: View {
         .background(
             RoundedRectangle(cornerRadius: 6)
                 .fill(accentOrange.opacity(0.9))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.white.opacity(0.7), lineWidth: 2)
+                )
                 .shadow(color: accentOrange.opacity(0.5), radius: 8, x: 0, y: 2)
         )
         .position(x: xPosition, y: yPosition)

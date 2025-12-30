@@ -107,12 +107,13 @@ struct BottomControlPanelView: View {
             .zIndex(1) // Ispod control panela
             .transition(.opacity.combined(with: .scale(scale: 0.95)))
             
-            // Control panel na dnu
+            // Control panel na dnu - 10px od dna ekrana
             VStack {
                 Spacer()
                 animatedOrangeButton
-                    .padding(.bottom, 20)
+                    .offset(y: 15) // Pomakni prema dolje (u minus u odnosu na kvadrat)
             }
+            .ignoresSafeArea(.all, edges: .bottom)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .zIndex(10) // Iznad mode view-ova
         }

@@ -32,10 +32,6 @@ struct GameModeView: View {
     
     private var emptyState: some View {
         ZStack {
-            // Pozadina - siva umjesto crne
-            Color(white: 0.15)
-                .cornerRadius(12)
-            
             VStack(spacing: 12) {
                 Image(systemName: "plus.circle.dashed")
                     .font(.system(size: 48))
@@ -58,10 +54,6 @@ private struct GameModeContentView: View {
     
     var body: some View {
         ZStack {
-            // Pozadina - siva umjesto crne
-            Color(white: 0.15)
-                .cornerRadius(12)
-            
             // Horizontalni scroll s elementima - centrirano
             GeometryReader { geometry in
                 ScrollView(.horizontal, showsIndicators: false) {

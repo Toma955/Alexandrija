@@ -47,7 +47,7 @@ struct ClientSidesView: View {
                         Spacer()
                     }
                     .frame(width: squareWidth, height: squareHeight) // 285x345px
-                    .background(Color(white: 0.15))
+                    .background(Color.gray.opacity(0.2))
                     .cornerRadius(12)
                     .zIndex(1) // Background je najniži
                     

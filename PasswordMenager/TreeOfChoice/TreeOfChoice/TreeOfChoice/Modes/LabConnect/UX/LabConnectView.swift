@@ -155,7 +155,7 @@ struct LabConnectView: View {
                 GeometryReader { fullGeometry in
                     let squareWidth = fullGeometry.size.width - 20
                     let squareX = fullGeometry.size.width / 2
-                    let controlPanelY = fullGeometry.size.height - 50
+                    let controlPanelY = fullGeometry.size.height - 10 // 10px od dna ekrana
                     
                     ControlPanelOnlyView(bottomControlPanel: bottomControlPanel)
                         .frame(width: squareWidth)
@@ -181,7 +181,7 @@ struct LabConnectView: View {
                     // Control panel ima visinu 60px + padding 20px = 80px, dodajem još malo prostora
                     bottomEdge = fullGeometry.size.height - 100 // Iznad narančastog control panela
                 } else {
-                    bottomEdge = fullGeometry.size.height - 10 // Normalna pozicija
+                    bottomEdge = fullGeometry.size.height - 20 // 20px od dna
                 }
                 
                 // Gornji rub kvadrata - proširi prema gore kada je Edit mode u Track mode-u
@@ -217,25 +217,9 @@ struct LabConnectView: View {
                         // Edit mode u Track mode-u - prozor i control panel odvojeno
                         // Prozor - samo sadržaj (TrackModeView)
                         ZStack {
-                            // Background s narančastim borderom - poboljšan izgled
+                            // Background siva boja bez obruba
                             RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.black.opacity(0.9))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .stroke(
-                                            LinearGradient(
-                                                colors: [
-                                                    Color(red: 1.0, green: 0.36, blue: 0.0),
-                                                    Color(red: 1.0, green: 0.5, blue: 0.2)
-                                                ],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            ),
-                                            lineWidth: 3
-                                        )
-                                )
-                                .shadow(color: Color(red: 1.0, green: 0.36, blue: 0.0).opacity(0.5), radius: 20, x: 0, y: 5)
-                                .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 2)
+                                .fill(Color.gray.opacity(0.3))
                             
                             // Sadržaj prozora (bez control panela)
                             TrackModeView(isEditMode: $bottomControlPanel.isEditMode)
@@ -257,7 +241,7 @@ struct LabConnectView: View {
                         ZStack {
                             // Background
                             Rectangle()
-                                .fill(Color(white: 0.15))
+                                .fill(Color.gray.opacity(0.3))
                                 .frame(width: squareWidth, height: squareHeight)
                                 .cornerRadius(12)
                             
@@ -280,7 +264,7 @@ struct LabConnectView: View {
     private var sessionStarterPanel: some View {
         SessionStarterElementView(sessionStarterElement: sessionStarterElement)
             .frame(width: 280, height: 200) // Iste dimenzije kao actionButtonsPanel
-            .background(Color(white: 0.15))
+            .background(Color.gray.opacity(0.3))
             .cornerRadius(16)
     }
     
@@ -470,7 +454,7 @@ struct ControlPanelOnlyView: View {
         VStack {
             Spacer()
             animatedOrangeButton
-                .padding(.bottom, 20)
+                .offset(y: 15) // Pomakni prema dolje (u minus u odnosu na kvadrat)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .opacity(1.0) // Osiguraj potpunu vidljivost
