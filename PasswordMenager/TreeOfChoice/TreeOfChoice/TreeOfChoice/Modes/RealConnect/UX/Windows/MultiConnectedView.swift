@@ -122,7 +122,8 @@ struct MultiConnectedView: View {
                     roomCode: $clientACode,
                     onConnect: { code in
                         connectClientA(code: code)
-                    }
+                    },
+                    serverAddress: serverAddress
                 )
                 .frame(width: 300)
                 
@@ -138,7 +139,8 @@ struct MultiConnectedView: View {
                     roomCode: $clientBCode,
                     onConnect: { code in
                         connectClientB(code: code)
-                    }
+                    },
+                    serverAddress: serverAddress
                 )
                 .frame(width: 300)
             }
@@ -261,6 +263,13 @@ struct MultiConnectedView: View {
     }
     
     private func connectClientA(code: String) {
+        // Provjeri je li već spojen na istu sobu
+        if roomSessionA.isSessionReady && roomSessionA.roomCode == code {
+            addLog("[Client A] Already connected to room: \(code)", level: .info)
+            clientACode = code
+            return
+        }
+        
         addLog("[Client A] Starting connection to room: \(code)", level: .info)
         clientACode = code
         
@@ -280,6 +289,13 @@ struct MultiConnectedView: View {
     }
     
     private func connectClientB(code: String) {
+        // Provjeri je li već spojen na istu sobu
+        if roomSessionB.isSessionReady && roomSessionB.roomCode == code {
+            addLog("[Client B] Already connected to room: \(code)", level: .info)
+            clientBCode = code
+            return
+        }
+        
         addLog("[Client B] Starting connection to room: \(code)", level: .info)
         clientBCode = code
         
@@ -321,77 +337,50 @@ struct ClientPanelView: View {
     let roomSession: RoomSessionManager
     @Binding var roomCode: String
     let onConnect: (String) -> Void
+    let serverAddress: String
     
     @StateObject private var clientControlPanel = ClientControlPanelElement()
-    @State private var showConnectionDialog = false
+    @State private var messageText: String = ""
+    @State private var showCustomInput: Bool = false
+    @State private var sendInterval: TimeInterval = 0.0 // 0 = ne šalje se (crvena boja)
+    @State private var autoSendTask: Task<Void, Never>?
+    
+    // Interval opcije: 0 (ne šalje), 5s, 10s, 20s, 40s, 60s, 120s (2min), 240s (4min)
+    private let intervalOptions: [TimeInterval] = [0, 5, 10, 20, 40, 60, 120, 240]
+    private var intervalDisplayName: String {
+        if sendInterval == 0 {
+            return "0"
+        } else if sendInterval < 60 {
+            return "\(Int(sendInterval))s"
+        } else {
+            let minutes = Int(sendInterval) / 60
+            return "\(minutes)min"
+        }
+    }
     
     var body: some View {
         ZStack {
             // Background okvir
-            VStack(spacing: 8) {
-                HStack {
-                    Text(clientName)
-                        .font(.headline.bold())
-                        .foregroundColor(.white)
-                    
-                    Spacer()
-                    
-                    // Connection status
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(roomSession.isSessionReady ? Color.green : Color.red)
-                            .frame(width: 6, height: 6)
-                        Text(roomSession.isSessionReady ? "Connected" : "Disconnected")
-                            .font(.caption2)
-                            .foregroundColor(.white.opacity(0.6))
-                    }
-                }
-                .padding(.top, 12)
-                .padding(.horizontal, 12)
-                
-                // Room code display
-                if !roomCode.isEmpty {
-                    Text("Room: \(roomCode)")
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.5))
-                        .padding(.horizontal, 12)
-                }
-                
-                // Connect button (ako nije spojen)
-                if !roomSession.isSessionReady {
-                    Button(action: {
-                        showConnectionDialog = true
-                    }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "link")
-                                .font(.system(size: 12))
-                            Text("Connect")
-                                .font(.system(size: 12, weight: .medium))
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(
-                            Capsule()
-                                .fill(Color.orange.opacity(0.7))
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.top, 4)
-                }
-                
-                Spacer()
+            if roomSession.isSessionReady {
+                // Chat interface kada je spojen
+                chatInterfaceView
+            } else {
+                // Connection status view kada nije spojen
+                connectionStatusView
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.gray.opacity(0.2))
-            .cornerRadius(12)
-            .zIndex(1)
             
             // View-ovi unutar okvira
             if clientControlPanel.showUser {
                 ClientUserView(
                     isPresented: $clientControlPanel.showUser,
-                    clientName: clientName
+                    clientName: clientName,
+                    roomSession: roomSession,
+                    roomCode: Binding<String?>(
+                        get: { roomCode },
+                        set: { if let newValue = $0 { roomCode = newValue } }
+                    ),
+                    onConnect: onConnect,
+                    serverAddress: serverAddress.isEmpty ? nil : serverAddress
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .zIndex(5)
@@ -427,21 +416,338 @@ struct ClientPanelView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .zIndex(20)
         }
-        .sheet(isPresented: $showConnectionDialog) {
-            ConnectionToRoomView(
-                title: "Spoji se na sobu",
-                buttonTitle: "Poveži se",
-                showsConnectButton: true,
-                isServerConnected: true,
-                message: nil
-            ) { code in
-                onConnect(code)
-                showConnectionDialog = false
-            } onCancel: {
-                showConnectionDialog = false
+    }
+    
+    // MARK: - Connection Status View (kada nije spojen)
+    
+    private var connectionStatusView: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Text(clientName)
+                    .font(.headline.bold())
+                    .foregroundColor(.white)
+                
+                Spacer()
+                
+                // Connection status
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(roomSession.isSessionReady ? Color.green : Color.red)
+                        .frame(width: 6, height: 6)
+                    Text(roomSession.isSessionReady ? "Connected" : "Disconnected")
+                        .font(.caption2)
+                        .foregroundColor(.white.opacity(0.6))
+                }
             }
-            .frame(width: 500, height: 300)
+            .padding(.top, 12)
+            .padding(.horizontal, 12)
+            
+            // Room code display
+            if !roomCode.isEmpty {
+                Text("Room: \(roomCode)")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.5))
+                    .padding(.horizontal, 12)
+            }
+            
+            Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.gray.opacity(0.2))
+        .cornerRadius(12)
+        .zIndex(1)
+    }
+    
+    // MARK: - Chat Interface View (kada je spojen)
+    
+    private var chatInterfaceView: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(clientName)
+                        .font(.headline.bold())
+                        .foregroundColor(.white)
+                    
+                    if !roomCode.isEmpty {
+                        Text("Room: \(roomCode)")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                }
+                
+                Spacer()
+                
+                // Status indicator
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 6, height: 6)
+                    Text("Connected")
+                        .font(.caption2)
+                        .foregroundColor(.white.opacity(0.6))
+                }
+            }
+            .padding(.top, 12)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
+            
+            Divider()
+                .background(Color.white.opacity(0.3))
+            
+            // Messages list
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 8) {
+                        ForEach(roomSession.messages) { message in
+                            MessageBubbleView(
+                                message: message,
+                                isHighlighted: false,
+                                textScale: 0.9
+                            )
+                            .id(message.id)
+                        }
+                    }
+                    .padding(8)
+                }
+                .onChange(of: roomSession.messages.count) { _ in
+                    if let lastMessage = roomSession.messages.last {
+                        withAnimation {
+                            proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                        }
+                    }
+                }
+            }
+            
+            Divider()
+                .background(Color.white.opacity(0.3))
+            
+            // 4 gumba: Custom, Sat, Random, X
+            HStack(spacing: 12) {
+                // 1. Custom button
+                Button(action: {
+                    showCustomInput.toggle()
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 12, weight: .medium))
+                        Text("Custom")
+                            .font(.caption)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(showCustomInput ? Color(red: 1.0, green: 0.36, blue: 0.0) : Color(red: 1.0, green: 0.36, blue: 0.0).opacity(0.7))
+                    )
+                }
+                .buttonStyle(.plain)
+                
+                // 2. Sat button (interval selector)
+                Button(action: {
+                    cycleInterval()
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "clock.fill")
+                            .font(.system(size: 12, weight: .medium))
+                        Text(intervalDisplayName)
+                            .font(.caption)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(sendInterval == 0 ? Color.red.opacity(0.7) : Color(red: 1.0, green: 0.36, blue: 0.0).opacity(0.7))
+                    )
+                }
+                .buttonStyle(.plain)
+                
+                // 3. Random button
+                Button(action: {
+                    sendRandomMessage()
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "shuffle")
+                            .font(.system(size: 12, weight: .medium))
+                        Text("Random")
+                            .font(.caption)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(Color(red: 1.0, green: 0.36, blue: 0.0).opacity(0.7))
+                    )
+                }
+                .buttonStyle(.plain)
+                
+                // 4. X button (disconnect)
+                Button(action: {
+                    disconnect()
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .medium))
+                        Text("X")
+                            .font(.caption)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(Color.red.opacity(0.7))
+                    )
+                }
+                .buttonStyle(.plain)
+                
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            
+            Divider()
+                .background(Color.white.opacity(0.3))
+            
+            // Input bar (samo ako je Custom button kliknut)
+            if showCustomInput {
+                MessagesInputBar(
+                    messageText: $messageText,
+                    sendOnEnter: true,
+                    controlSize: 32,
+                    barWidth: .infinity,
+                    barHeight: 50,
+                    onSend: { text in
+                        roomSession.sendText(text)
+                        messageText = "" // Očisti input nakon slanja
+                    }
+                )
+                .padding(8)
+            } else {
+                // Placeholder kada Custom nije aktivan
+                HStack {
+                    Spacer()
+                    if sendInterval > 0 {
+                        Text("Auto sending: every \(intervalDisplayName)")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.5))
+                    } else {
+                        Text("Click Custom to send messages manually")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.5))
+                    }
+                    Spacer()
+                }
+                .frame(height: 50)
+                .padding(8)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.gray.opacity(0.2))
+        .cornerRadius(12)
+        .zIndex(1)
+        .onDisappear {
+            stopAutoSending()
+        }
+    }
+    
+    // MARK: - Auto Send Functions
+    
+    private func cycleInterval() {
+        guard let currentIndex = intervalOptions.firstIndex(of: sendInterval) else {
+            sendInterval = intervalOptions[0]
+            restartAutoSending()
+            return
+        }
+        
+        let nextIndex = (currentIndex + 1) % intervalOptions.count
+        sendInterval = intervalOptions[nextIndex]
+        restartAutoSending()
+    }
+    
+    private func startAutoSending() {
+        stopAutoSending() // Zaustavi postojeći task ako postoji
+        
+        // Ne pokreći ako je interval 0
+        guard sendInterval > 0 else { return }
+        
+        let currentRoomSession = roomSession
+        
+        autoSendTask = Task { @MainActor in
+            while sendInterval > 0 && currentRoomSession.isSessionReady {
+                // Čitaj trenutni interval dinamički (ažurira se svaki put)
+                let currentInterval = sendInterval
+                
+                // Ako je interval postao 0, zaustavi
+                guard currentInterval > 0 else { break }
+                
+                // Random vrijeme između 0 i sendInterval
+                let randomDelay = Double.random(in: 0...currentInterval)
+                
+                // Čekaj random vrijeme
+                try? await Task.sleep(nanoseconds: UInt64(randomDelay * 1_000_000_000))
+                
+                // Provjeri ponovno nakon sleep-a
+                guard sendInterval > 0 && currentRoomSession.isSessionReady else { break }
+                
+                // Generiraj i pošalji random poruku
+                let randomMessage = generateRandomMessage()
+                currentRoomSession.sendText(randomMessage)
+            }
+        }
+    }
+    
+    private func sendRandomMessage() {
+        guard roomSession.isSessionReady else { return }
+        
+        // Generiraj i pošalji random poruku odmah
+        let randomMessage = generateRandomMessage()
+        roomSession.sendText(randomMessage)
+    }
+    
+    private func disconnect() {
+        // Zaustavi auto sending
+        stopAutoSending()
+        
+        // Disconnect od sobe
+        roomSession.close()
+        
+        // Resetuj stanje
+        DispatchQueue.main.async {
+            self.showCustomInput = false
+            self.sendInterval = 0
+        }
+    }
+    
+    private func stopAutoSending() {
+        autoSendTask?.cancel()
+        autoSendTask = nil
+    }
+    
+    private func restartAutoSending() {
+        if sendInterval > 0 {
+            stopAutoSending()
+            startAutoSending()
+        } else {
+            stopAutoSending()
+        }
+    }
+    
+    private func generateRandomMessage() -> String {
+        let messages = [
+            "Hello!",
+            "Test message",
+            "Auto message \(Int.random(in: 1...1000))",
+            "Random: \(UUID().uuidString.prefix(8))",
+            "Ping",
+            "Message at \(Date().formatted(date: .omitted, time: .shortened))",
+            "Auto test",
+            "Random text"
+        ]
+        return messages.randomElement() ?? "Auto message"
     }
 }
 

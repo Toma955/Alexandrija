@@ -83,14 +83,6 @@ final class RoomSessionManager: ObservableObject {
             print("⚠️ [ROOM] Nema masterKey-a – poruke će ići u čistom tekstu.")
         }
         
-        // Provjeri format server adrese (kao AMessages)
-        let trimmed = self.serverAddress.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.lowercased().hasPrefix("http://") && !trimmed.lowercased().hasPrefix("https://") {
-            print("🧵 [ROOM] Neispravan serverAddress format: \(self.serverAddress)")
-            completion(false, "Adresa servera mora početi s http:// ili https://")
-            return
-        }
-        
         guard let wsURL = makeWebSocketURL(from: self.serverAddress) else {
             print("🧵 [ROOM] Neispravan serverAddress: \(self.serverAddress)")
             completion(false, "Neispravna adresa servera.")
@@ -262,47 +254,18 @@ final class RoomSessionManager: ObservableObject {
         let base = serverAddress.isEmpty
         ? "https://amessagesserver.onrender.com"
         : serverAddress
-        
-        let trimmed = base.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        // Provjeri je li IP adresa (npr. "74.220.51.0" ili "74.220.51.0:443")
-        if trimmed.range(of: #"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"#, options: .regularExpression) != nil {
-            // IP adresa - dodaj scheme i port ako nema
-            let parts = trimmed.split(separator: ":")
-            let ip = String(parts[0])
-            let port = parts.count > 1 ? String(parts[1]) : "443"
-            
-            var comps = URLComponents()
-            comps.scheme = "wss" // Default na WSS za sigurnost
-            comps.host = ip
-            comps.port = Int(port)
-            comps.path = "/"
-            
-            addNetworkLog("Using IP address: \(ip):\(port)")
-            return comps.url
-        }
-        
-        // Pokušaj parsirati kao URL
-        guard let httpURL = URL(string: trimmed) else {
-            addNetworkLog("Invalid server address format: \(trimmed)")
+
+        guard let httpURL = URL(string: base) else {
+            addNetworkLog("Invalid server address format: \(base)")
             return nil
         }
-        
+
         var comps = URLComponents()
-        
-        // Ako nema scheme, dodaj https://
-        if httpURL.scheme == nil {
-            comps.scheme = "wss"
-            comps.host = trimmed
-            comps.port = 443
-        } else {
-            comps.scheme = (httpURL.scheme == "https" || httpURL.scheme == "wss") ? "wss" : "ws"
-            comps.host = httpURL.host ?? trimmed
-            comps.port = httpURL.port
-        }
-        
+        comps.scheme = (httpURL.scheme == "https") ? "wss" : "ws"
+        comps.host = httpURL.host
+        comps.port = httpURL.port
         comps.path = httpURL.path.isEmpty ? "/" : httpURL.path
-        
+
         let finalURL = comps.url
         addNetworkLog("WebSocket URL: \(finalURL?.absoluteString ?? "invalid")")
         return finalURL

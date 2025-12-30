@@ -12,9 +12,34 @@ import AppKit
 struct ClientUserView: View {
     @Binding var isPresented: Bool
     let clientName: String // "Client A" ili "Client B"
+    
+    // Opcionalni parametri za RealConnect mod (stvarna konekcija)
+    let roomSession: RoomSessionManager?
+    @Binding var roomCode: String?
+    let onConnect: ((String) -> Void)?
+    let serverAddress: String?
+    
     @State private var fieldValues: [String] = Array(repeating: "", count: 16)
     @FocusState private var focusedField: Int?
     @State private var isConnecting: Bool = false
+    @StateObject private var keyManager = SessionKeyManager.shared
+    
+    // Convenience initializer za LabConnect mod (bez stvarne konekcije)
+    init(
+        isPresented: Binding<Bool>,
+        clientName: String,
+        roomSession: RoomSessionManager? = nil,
+        roomCode: Binding<String?>? = nil,
+        onConnect: ((String) -> Void)? = nil,
+        serverAddress: String? = nil
+    ) {
+        self._isPresented = isPresented
+        self.clientName = clientName
+        self.roomSession = roomSession
+        self._roomCode = roomCode ?? Binding.constant(nil)
+        self.onConnect = onConnect
+        self.serverAddress = serverAddress
+    }
     
     private var allFieldsFilled: Bool {
         fieldValues.allSatisfy { !$0.isEmpty }
@@ -232,18 +257,58 @@ struct ClientUserView: View {
     private func connect() {
         guard allFieldsFilled && !isConnecting else { return }
         
-        isConnecting = true
+        let code = fieldValues.joined()
+        guard code.count == 16 else { return }
         
-        // Simuliraj konekciju (zamijeni s pravom logikom)
-        Task {
-            // Simuliraj čekanje konekcije (2-5 sekundi)
-            let delay = Double.random(in: 2...5)
-            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+        // Ako imamo roomSession i onConnect, koristi stvarnu konekciju (RealConnect mod)
+        if let roomSession = roomSession, let onConnect = onConnect {
+            // Provjeri je li već spojen na istu sobu
+            if roomSession.isSessionReady && roomSession.roomCode == code {
+                // Već je spojen - samo zatvori view i ažuriraj roomCode
+                roomCode = code
+                onConnect(code)
+                isPresented = false
+                return
+            }
             
-            await MainActor.run {
-                isConnecting = false
-                // TODO: Implement actual connection logic here
-                print("Connect completed with values: \(fieldValues.joined())")
+            isConnecting = true
+            roomCode = code
+            
+            // Pozovi stvarnu konekciju preko RoomSessionManager
+            roomSession.joinRoom(
+                code: code,
+                masterKey: keyManager.masterKey,
+                serverAddress: serverAddress
+            ) { success, errorText in
+                DispatchQueue.main.async {
+                    isConnecting = false
+                    
+                    if success {
+                        // Ažuriraj roomCode binding
+                        roomCode = code
+                        // Zatvori view nakon uspješne konekcije
+                        // NE pozivaj onConnect jer će to pokrenuti ponovno spajanje
+                        // Konekcija je već uspostavljena preko roomSession.joinRoom
+                        isPresented = false
+                    } else {
+                        // Prikaži grešku (možeš dodati error handling UI)
+                        print("Connection failed: \(errorText ?? "Unknown error")")
+                    }
+                }
+            }
+        } else {
+            // LabConnect mod - simuliraj konekciju (stara logika)
+            isConnecting = true
+            
+            Task {
+                // Simuliraj čekanje konekcije (2-5 sekundi)
+                let delay = Double.random(in: 2...5)
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                
+                await MainActor.run {
+                    isConnecting = false
+                    print("Connect completed with values: \(code)")
+                }
             }
         }
     }
