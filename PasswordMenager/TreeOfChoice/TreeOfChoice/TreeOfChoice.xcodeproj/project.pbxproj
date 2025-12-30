@@ -33,9 +33,7 @@
 		F0D7B68D2EE7CC8500A65206 /* Exceptions for "TreeOfChoice" folder in "TreeOfChoice" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				AI/NeuralNetworks/Untitled.swift,
 				App/Shell/ModeLauncherView.swift,
-				App/Shell/Untitled.swift,
 				Modes/LabConnect/UX/Components/FirewallComponentView.swift,
 				Shared/NetworkTopology/UX/Components/Infrastructure/RouterComponentView.swift,
 				Shared/NetworkTopology/UX/Components/Infrastructure/ServerComponentView.swift,

@@ -22,6 +22,9 @@ class NetworkComponent: Identifiable, ObservableObject, Codable {
     @Published var customColorBlue: Double?
     var areaWidth: CGFloat? // Širina area kvadrata za area komponente
     var areaHeight: CGFloat? // Visina area kvadrata za area komponente
+    @Published var publicIP: String? // Public IP adresa
+    @Published var privateIP: String? // Private IP adresa
+    @Published var isPoweredOn: Bool = true // Turn on/off status
     
     var customColor: Color? {
         get {
@@ -205,7 +208,7 @@ class NetworkComponent: Identifiable, ObservableObject, Codable {
         case nilternius = "nilternius"
     }
     
-    init(id: UUID = UUID(), componentType: ComponentType, position: CGPoint, name: String, isClientA: Bool? = nil, isClientB: Bool? = nil) {
+    init(id: UUID = UUID(), componentType: ComponentType, position: CGPoint, name: String, isClientA: Bool? = nil, isClientB: Bool? = nil, publicIP: String? = nil, privateIP: String? = nil, isPoweredOn: Bool = true) {
         self.id = id
         self.componentType = componentType
         self.position = position
@@ -217,12 +220,15 @@ class NetworkComponent: Identifiable, ObservableObject, Codable {
         self.customColorBlue = nil
         self.areaWidth = nil
         self.areaHeight = nil
+        self.publicIP = publicIP
+        self.privateIP = privateIP
+        self.isPoweredOn = isPoweredOn
     }
     
     // MARK: - Codable
     
     enum CodingKeys: String, CodingKey {
-        case id, componentType, position, name, isClientA, isClientB, customColorRed, customColorGreen, customColorBlue, areaWidth, areaHeight
+        case id, componentType, position, name, isClientA, isClientB, customColorRed, customColorGreen, customColorBlue, areaWidth, areaHeight, publicIP, privateIP, isPoweredOn
     }
     
     required init(from decoder: Decoder) throws {
@@ -239,6 +245,9 @@ class NetworkComponent: Identifiable, ObservableObject, Codable {
         customColorBlue = try container.decodeIfPresent(Double.self, forKey: .customColorBlue)
         areaWidth = try container.decodeIfPresent(CGFloat.self, forKey: .areaWidth)
         areaHeight = try container.decodeIfPresent(CGFloat.self, forKey: .areaHeight)
+        publicIP = try container.decodeIfPresent(String.self, forKey: .publicIP)
+        privateIP = try container.decodeIfPresent(String.self, forKey: .privateIP)
+        isPoweredOn = try container.decodeIfPresent(Bool.self, forKey: .isPoweredOn) ?? true // Default to true if not present
     }
     
     func encode(to encoder: Encoder) throws {
@@ -254,6 +263,9 @@ class NetworkComponent: Identifiable, ObservableObject, Codable {
         try container.encodeIfPresent(customColorBlue, forKey: .customColorBlue)
         try container.encodeIfPresent(areaWidth, forKey: .areaWidth)
         try container.encodeIfPresent(areaHeight, forKey: .areaHeight)
+        try container.encodeIfPresent(publicIP, forKey: .publicIP)
+        try container.encodeIfPresent(privateIP, forKey: .privateIP)
+        try container.encode(isPoweredOn, forKey: .isPoweredOn)
     }
 }
 

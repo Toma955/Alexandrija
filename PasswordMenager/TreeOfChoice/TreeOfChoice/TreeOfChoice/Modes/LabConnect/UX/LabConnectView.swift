@@ -306,15 +306,15 @@ struct LabConnectView: View {
             ActionButton(title: "upload", icon: "square.and.arrow.up", color: accentOrange) {}
 
             // Row 2: Delete Topology, Delete Connections (Red)
-            ActionButton(title: "delete topologi", icon: "trash", color: .red, fontSize: .caption2) {
+            ActionButton(title: "delete topology", icon: "trash", color: .red, fontSize: .caption2) {
                 canvasElement.deleteAllTopology()
             }
-            ActionButton(title: "delete conections", icon: "trash.circle", color: .red) {
+            ActionButton(title: "delete connections", icon: "trash.circle", color: .red) {
                 canvasElement.deleteAllConnections()
             }
 
             // Row 3: Autoconnect, Edit mode / Config mode (Green)
-            ActionButton(title: "autocnect", icon: "arrow.triangle.2.circlepath", color: .green) {}
+            ActionButton(title: "autoconnect", icon: "arrow.triangle.2.circlepath", color: .green) {}
             ActionButton(title: canvasElement.isTestMode ? "Config mode" : "Edit mode", icon: "checkmark.circle", color: .green) {
                 canvasElement.toggleTestMode()
             }
