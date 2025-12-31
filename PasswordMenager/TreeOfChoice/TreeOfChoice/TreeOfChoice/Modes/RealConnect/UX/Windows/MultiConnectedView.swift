@@ -128,7 +128,13 @@ struct MultiConnectedView: View {
                 .frame(width: 300)
                 
                 // Topology kvadrat
-                TopologyPanelView()
+                RealConnectTopologyView(
+                    roomSessionA: roomSessionA,
+                    roomSessionB: roomSessionB,
+                    serverAddress: serverAddress,
+                    clientACode: clientACode,
+                    clientBCode: clientBCode
+                )
                     .frame(maxWidth: .infinity)
                 
                 // Client B
@@ -424,10 +430,10 @@ struct ClientPanelView: View {
         VStack(spacing: 8) {
             HStack {
                 Text(clientName)
-                    .font(.headline.bold())
-                    .foregroundColor(.white)
-                
-                Spacer()
+                .font(.headline.bold())
+                .foregroundColor(.white)
+            
+            Spacer()
                 
                 // Connection status
                 HStack(spacing: 4) {
@@ -436,7 +442,7 @@ struct ClientPanelView: View {
                         .frame(width: 6, height: 6)
                     Text(roomSession.isSessionReady ? "Connected" : "Disconnected")
                         .font(.caption2)
-                        .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(.white.opacity(0.6))
                 }
             }
             .padding(.top, 12)
@@ -748,37 +754,6 @@ struct ClientPanelView: View {
             "Random text"
         ]
         return messages.randomElement() ?? "Auto message"
-    }
-}
-
-// MARK: - Topology Panel View
-
-struct TopologyPanelView: View {
-    var body: some View {
-        VStack {
-            Text("Topology")
-                .font(.headline.bold())
-                .foregroundColor(.white)
-                .padding(.top, 12)
-            
-            Spacer()
-            
-            // Placeholder za topologiju
-            VStack(spacing: 16) {
-                Image(systemName: "network")
-                    .font(.system(size: 48))
-                    .foregroundColor(.white.opacity(0.3))
-                
-                Text("Network Topology")
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.6))
-            }
-            
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black.opacity(0.3))
-        .cornerRadius(12)
     }
 }
 
