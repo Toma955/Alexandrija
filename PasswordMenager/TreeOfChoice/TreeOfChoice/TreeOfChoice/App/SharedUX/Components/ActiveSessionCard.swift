@@ -38,41 +38,36 @@ struct ActiveSessionCard: View {
                 .multilineTextAlignment(.center)
                 .frame(height: 36)
             
-            // Botuni
-            HStack(spacing: 8) {
-                // Delete botun
-                Button(action: onDelete) {
-                    Image(systemName: "trash")
-                        .font(.caption)
-                        .foregroundColor(.white)
-                        .frame(width: 24, height: 24)
-                        .background(Color.red.opacity(0.8))
-                        .cornerRadius(4)
-                }
-                .buttonStyle(.plain)
-                .help("Delete session")
-                
-                // Open botun
-                Button(action: onOpen) {
-                    Image(systemName: "arrow.right.circle.fill")
-                        .font(.caption)
-                        .foregroundColor(.white)
-                        .frame(width: 24, height: 24)
-                        .background(accentOrange)
-                        .cornerRadius(4)
-                }
-                .buttonStyle(.plain)
-                .help("Open session")
+            // Delete botun na sredini
+            Button(action: onDelete) {
+                Image(systemName: "trash")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.white)
+                    .frame(width: 32, height: 32)
+                    .background(Color.red.opacity(0.8))
+                    .clipShape(Circle())
             }
+            .buttonStyle(.plain)
+            .help("Delete session")
+            .highPriorityGesture(
+                TapGesture().onEnded {
+                    onDelete()
+                }
+            )
         }
         .frame(width: 140, height: 160)
         .padding(12)
         .background(Color.black.opacity(0.6))
-        .cornerRadius(12)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 16)
                 .stroke(Color.white.opacity(0.2), lineWidth: 1)
         )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onOpen()
+        }
+        .fixedSize(horizontal: true, vertical: false)
     }
     
     private func loadIcon(named name: String) -> NSImage? {

@@ -16,9 +16,11 @@ struct ModeWindowView: View {
     @Binding var selectedMode: AppView.AppMode?
     @State private var selectedTabId: UUID?
     @State private var tabs: [TabItem]
+    var sessionStore: SessionStore?
     
-    init(selectedMode: Binding<AppView.AppMode?>, initialTab: ModeTab = .labConnect) {
+    init(selectedMode: Binding<AppView.AppMode?>, initialTab: ModeTab = .labConnect, sessionStore: SessionStore? = nil) {
         self._selectedMode = selectedMode
+        self.sessionStore = sessionStore
         let initialTabItem = TabItem(tab: initialTab)
         _selectedTabId = State(initialValue: initialTabItem.id)
         _tabs = State(initialValue: [initialTabItem])
@@ -91,7 +93,29 @@ struct ModeWindowView: View {
         }
         .frame(minWidth: 1400, minHeight: 900)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(WindowAccessor { window in
+            // Spremi referencu na prozor za minimizaciju
+            if let window = window {
+                cachedWindow = window
+            }
+        })
+        .onAppear {
+            #if os(macOS)
+            // Također pokušaj pronaći prozor kada se view pojavi
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                if cachedWindow == nil {
+                    if let window = NSApplication.shared.keyWindow ?? NSApplication.shared.mainWindow {
+                        cachedWindow = window
+                    }
+                }
+            }
+            #endif
+        }
     }
+    
+    #if os(macOS)
+    @State private var cachedWindow: NSWindow?
+    #endif
     
     // MARK: - Tab Bar
     
@@ -140,11 +164,9 @@ struct ModeWindowView: View {
     
     private var macOSWindowControls: some View {
         HStack(spacing: 8) {
-            // Close button (red)
+            // Close button (red) - prekini sve i vrati se na home
             Button(action: {
-                if let currentTab = tabs.first(where: { $0.id == selectedTabId }) {
-                    closeTab(currentTab)
-                }
+                closeToHome()
             }) {
                 Circle()
                     .fill(Color.red)
@@ -156,26 +178,14 @@ struct ModeWindowView: View {
                     )
             }
             .buttonStyle(.plain)
-            .help("Close tab")
-            
-            // Minimize button (yellow)
-            Button(action: {
-                minimizeWindow()
-            }) {
-                Circle()
-                    .fill(Color.yellow)
-                    .frame(width: 12, height: 12)
-                    .overlay(
-                        Image(systemName: "minus")
-                            .font(.system(size: 7, weight: .bold))
-                            .foregroundColor(.black.opacity(0.6))
-                    )
-            }
-            .buttonStyle(.plain)
-            .help("Minimize window")
+            .help("Close and return to home")
             
             // Home button (green-like, but using house icon)
             Button(action: {
+                // Ažuriraj sesiju prije izlaska
+                if let sessionStore = sessionStore, let currentSession = sessionStore.activeSessions.last {
+                    sessionStore.updateSession(currentSession)
+                }
                 selectedMode = nil
             }) {
                 Circle()
@@ -234,6 +244,10 @@ struct ModeWindowView: View {
     
     private var homeButton: some View {
         Button(action: {
+            // Ažuriraj sesiju prije izlaska
+            if let sessionStore = sessionStore, let currentSession = sessionStore.activeSessions.last {
+                sessionStore.updateSession(currentSession)
+            }
             selectedMode = nil
         }) {
             Image(systemName: "house.fill")
@@ -293,6 +307,10 @@ struct ModeWindowView: View {
     private func closeTab(_ tabItem: TabItem) {
         guard tabs.count > 1 else {
             // If last tab, go back to home
+            // Ažuriraj sesiju prije izlaska
+            if let sessionStore = sessionStore, let currentSession = sessionStore.activeSessions.last {
+                sessionStore.updateSession(currentSession)
+            }
             selectedMode = nil
             return
         }
@@ -312,14 +330,31 @@ struct ModeWindowView: View {
         }
     }
     
-    private func minimizeWindow() {
-        #if os(macOS)
-        DispatchQueue.main.async {
-            if let window = NSApplication.shared.windows.first {
-                window.miniaturize(nil)
+    private func closeToHome() {
+        // Obriši sesiju iz Active Sessions
+        if let sessionStore = sessionStore {
+            // Pronađi sesiju za trenutni mod i obriši je
+            if let currentTab = tabs.first(where: { $0.id == selectedTabId }) {
+                let modeType = mapTabToSessionModeType(currentTab.tab)
+                if let session = sessionStore.findSession(modeType: modeType) {
+                    sessionStore.deleteSession(session)
+                }
             }
         }
-        #endif
+        
+        // Vrati se na home (ne zatvaraj aplikaciju)
+        selectedMode = nil
+    }
+    
+    private func mapTabToSessionModeType(_ tab: ModeTab) -> SessionModeType {
+        switch tab {
+        case .labConnect: return .labConnect
+        case .labSecurity: return .labSecurity
+        case .realConnect: return .realConnect
+        case .realSecurity: return .realSecurity
+        case .treeLibrary: return .treeLibrary
+        case .treeCreator: return .treeCreator
+        }
     }
     
     private func renameTab(_ tabItem: TabItem, newName: String) {
@@ -431,4 +466,31 @@ struct TabItemView: View {
         editingTitle = tabItem.displayName
     }
 }
+
+// MARK: - Window Accessor Helper
+
+#if os(macOS)
+struct WindowAccessor: NSViewRepresentable {
+    let callback: (NSWindow?) -> Void
+    
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        view.wantsLayer = true
+        DispatchQueue.main.async {
+            if let window = view.window {
+                callback(window)
+            }
+        }
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            if let window = nsView.window {
+                callback(window)
+            }
+        }
+    }
+}
+#endif
 

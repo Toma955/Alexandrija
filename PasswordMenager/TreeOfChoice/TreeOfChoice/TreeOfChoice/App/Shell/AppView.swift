@@ -27,7 +27,7 @@ struct AppView: View {
         Group {
             if let mode = selectedMode {
                 // Show ModeWindowView instead of home screen
-                ModeWindowView(selectedMode: $selectedMode, initialTab: mapToModeTab(mode))
+                ModeWindowView(selectedMode: $selectedMode, initialTab: mapToModeTab(mode), sessionStore: sessionStore)
                     .environmentObject(localization)
                     .transition(.opacity)
             } else {
@@ -36,6 +36,18 @@ struct AppView: View {
             }
         }
         .animation(.easeInOut, value: selectedMode)
+        .onChange(of: selectedMode) { newMode in
+            // Kada se izađe iz moda (vrati se na home), osiguraj da sesija ostane aktivna
+            if newMode == nil {
+                // Ažuriraj zadnju sesiju da ostane aktivna
+                if let currentSession = sessionStore.activeSessions.last {
+                    var updatedSession = currentSession
+                    updatedSession.lastAccessed = Date()
+                    updatedSession.isActive = true
+                    sessionStore.updateSession(updatedSession)
+                }
+            }
+        }
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environmentObject(localization)
