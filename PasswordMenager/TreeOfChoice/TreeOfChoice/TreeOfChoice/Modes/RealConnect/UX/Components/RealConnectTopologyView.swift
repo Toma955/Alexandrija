@@ -21,6 +21,17 @@ struct RealConnectTopologyView: View {
     @State private var gatewayA: String = "192.168.1.1" // Gateway za Client A (default)
     @State private var gatewayB: String = "192.168.1.2" // Gateway za Client B (različit od Client A)
     
+    @State private var impulseProgress: CGFloat = 0
+    @State private var impulseDirection: ImpulseDirection = .none
+    @State private var lastMessageCountA: Int = 0
+    @State private var lastMessageCountB: Int = 0
+    
+    enum ImpulseDirection {
+        case none
+        case aToB
+        case bToA
+    }
+    
     /// Provjeri jesu li oba clienta spojena (za prikaz gatewaya i detalja)
     private var bothClientsConnected: Bool {
         roomSessionA.isSessionReady && roomSessionB.isSessionReady
@@ -70,6 +81,22 @@ struct RealConnectTopologyView: View {
                 refreshNetworkInfoAfterConnection()
             }
         }
+        .onChange(of: roomSessionA.messages.count) { newCount in
+            if newCount > lastMessageCountA && roomSessionA.isSessionReady {
+                lastMessageCountA = newCount
+                startImpulse(direction: .aToB)
+            }
+        }
+        .onChange(of: roomSessionB.messages.count) { newCount in
+            if newCount > lastMessageCountB && roomSessionB.isSessionReady {
+                lastMessageCountB = newCount
+                startImpulse(direction: .bToA)
+            }
+        }
+        .onAppear {
+            lastMessageCountA = roomSessionA.messages.count
+            lastMessageCountB = roomSessionB.messages.count
+        }
     }
     
     // MARK: - Header
@@ -99,244 +126,177 @@ struct RealConnectTopologyView: View {
     
     // MARK: - Visualization
     
+    @State private var connectionPoints: [String: CGPoint] = [:]
+    
     private var topologyVisualization: some View {
         GeometryReader { geometry in
             ZStack {
                 // Background
                 Color.clear
                 
-                // Connection lines (različite ovisno o tome jesu li spojeni)
+                // Connection lines (koriste stvarne pozicije točaka)
                 connectionLines(geometry: geometry)
                 
-                // Nodes - različiti layout ovisno o tome jesu li spojeni
-                if bothClientsConnected {
-                    // Layout s gatewayima (nakon spajanja)
-                    layoutWithGateways(geometry: geometry)
-                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
-                } else {
-                    // Početni trokutni layout (samo Client A, Client B, Server)
-                    initialTriangleLayout(geometry: geometry)
-                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
-                }
+                // Nodes - fiksne pozicije, gatewayi se dodaju između
+                unifiedLayout(geometry: geometry)
+            }
+            .coordinateSpace(name: "topology")
+            .onPreferenceChange(ConnectionPointKey.self) { points in
+                connectionPoints = points
             }
         }
         .padding(16)
-        .animation(.easeInOut(duration: 0.5), value: bothClientsConnected)
-    }
-    
-    /// Početni layout - samo Client A, Client B i Server u horizontalnoj liniji (bez gatewaya i detalja)
-    @ViewBuilder
-    private func initialTriangleLayout(geometry: GeometryProxy) -> some View {
-        let centerY = geometry.size.height / 2
-        let padding: CGFloat = 40
-        let nodeWidth: CGFloat = 120
-        let clientRadius: CGFloat = 25
-        let serverRadius: CGFloat = 30
-        
-        // Izračunaj pozicije centara
-        let clientAX = padding + nodeWidth / 2
-        let serverX = geometry.size.width / 2
-        let clientBX = geometry.size.width - padding - nodeWidth / 2
-        
-        ZStack {
-            // Client A lijevo
-            topologyNode(
-                label: "Client A",
-                isConnected: false,
-                geometry: geometry,
-                showDetails: false
-            )
-            .frame(width: 120)
-            .position(x: clientAX, y: centerY)
-            
-            // Server u sredini
-            topologyNode(
-                label: "Relay Server",
-                isConnected: false,
-                geometry: geometry,
-                isServer: true,
-                showDetails: false
-            )
-            .frame(width: 120)
-            .position(x: serverX, y: centerY)
-            
-            // Client B desno
-            topologyNode(
-                label: "Client B",
-                isConnected: false,
-                geometry: geometry,
-                showDetails: false
-            )
-            .frame(width: 120)
-            .position(x: clientBX, y: centerY)
-            
-            // Crvene točke za spajanje linija (na vanjskom rubu kruga - 0° i 180°, malo iznad sredine)
-            // Client A: desna strana (0° - vanjski rub, malo gore)
-            Circle()
-                .fill(Color.red)
-                .frame(width: 6, height: 6)
-                .position(x: clientAX + clientRadius, y: centerY - clientRadius * 0.3)
-            
-            // Server: lijeva i desna strana (180° i 0° - vanjski rub, malo gore)
-            Circle()
-                .fill(Color.red)
-                .frame(width: 6, height: 6)
-                .position(x: serverX - serverRadius, y: centerY - serverRadius * 0.3)
-            
-            Circle()
-                .fill(Color.red)
-                .frame(width: 6, height: 6)
-                .position(x: serverX + serverRadius, y: centerY - serverRadius * 0.3)
-            
-            // Client B: lijeva strana (180° - vanjski rub, malo gore)
-            Circle()
-                .fill(Color.red)
-                .frame(width: 6, height: 6)
-                .position(x: clientBX - clientRadius, y: centerY - clientRadius * 0.3)
+        .onChange(of: impulseProgress) { _ in
+            // Force view update
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
-    /// Layout s gatewayima - prikazuje se nakon što se oba clienta spoje
-    /// Client A, Server i Client B ostaju na istim pozicijama, gatewayi se dodaju između njih
+    /// Unified layout - fiksne pozicije za Client A, Server i Client B, gatewayi se dodaju između
     @ViewBuilder
-    private func layoutWithGateways(geometry: GeometryProxy) -> some View {
-        let centerY = geometry.size.height / 2
+    private func unifiedLayout(geometry: GeometryProxy) -> some View {
+        // Fiksna Y pozicija - spuštena za 100 piksela
+        let nodeY = geometry.size.height * 0.35 + 100
         let padding: CGFloat = 40
         let nodeWidth: CGFloat = 120
-        let clientRadius: CGFloat = 25
-        let gatewayRadius: CGFloat = 25
-        let serverRadius: CGFloat = 30
+        let spacing: CGFloat = 30
         
-        // Izračunaj pozicije centara - ISTE kao u initialTriangleLayout
+        // Fiksne X pozicije za glavne nodeove (ne mijenjaju se)
         let clientAX = padding + nodeWidth / 2
         let serverX = geometry.size.width / 2
         let clientBX = geometry.size.width - padding - nodeWidth / 2
         
-        // Gatewayi se stvaraju između elemenata (sredina između njih)
-        let gatewayAX = (clientAX + serverX) / 2  // Sredina između Client A i Server
-        let gatewayBX = (serverX + clientBX) / 2  // Sredina između Server i Client B
+        // Gateway pozicije - izračunaj na osnovu stvarnih pozicija točaka (sredina između točaka)
+        let clientARightPoint = connectionPoints["clientA-right"] ?? CGPoint(x: clientAX + 25, y: nodeY)
+        let serverLeftPoint = connectionPoints["server-left"] ?? CGPoint(x: serverX - 25, y: nodeY)
+        let serverRightPoint = connectionPoints["server-right"] ?? CGPoint(x: serverX + 25, y: nodeY)
+        let clientBLeftPoint = connectionPoints["clientB-left"] ?? CGPoint(x: clientBX - 25, y: nodeY)
+        
+        // Gateway A je na sredini između Client A desne točke i Server lijeve točke
+        let gatewayAX = (clientARightPoint.x + serverLeftPoint.x) / 2
+        // Gateway B je na sredini između Server desne točke i Client B lijeve točke
+        let gatewayBX = (serverRightPoint.x + clientBLeftPoint.x) / 2
         
         ZStack {
-            // Client A lijevo
-            topologyNode(
+            // Client A lijevo - UVIJEK na istoj poziciji
+            TopologyNodeView(
+                nodeID: "clientA",
                 label: "Client A",
                 isConnected: roomSessionA.isSessionReady,
-                geometry: geometry,
+                isServer: false,
+                isGateway: false,
+                isSwitch: false,
                 roomCode: clientACode,
                 messageCount: roomSessionA.messages.count,
                 privateIP: networkInfoA.privateIP,
                 publicIP: networkInfoA.publicIP,
                 port: networkInfoA.port,
                 gateway: gatewayA,
-                showDetails: true
+                macAddress: "",
+                serverIP: "",
+                showDetails: bothClientsConnected
             )
             .frame(width: 120)
-            .position(x: clientAX, y: centerY)
+            .position(x: clientAX, y: nodeY)
+            .id("clientA")
+            .transaction { $0.animation = nil }
             
-            // Gateway A
-            topologyNode(
+            // Gateway A - pojavljuje se samo kada su spojeni
+            if bothClientsConnected {
+                TopologyNodeView(
+                    nodeID: "gatewayA",
                 label: "Gateway A",
                 isConnected: true,
-                geometry: geometry,
+                    isServer: false,
                 isGateway: true,
+                    isSwitch: false,
+                    roomCode: "",
+                    messageCount: 0,
                 privateIP: networkInfoA.privateIP,
                 publicIP: networkInfoA.publicIP,
+                    port: "",
+                    gateway: gatewayA,
                 macAddress: networkInfoA.macAddress,
-                gateway: gatewayA,
+                    serverIP: "",
                 showDetails: true
             )
             .frame(width: 120)
-            .position(x: gatewayAX, y: centerY)
+                .position(x: gatewayAX, y: nodeY)
+                .zIndex(10)
+                .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                .animation(.easeInOut(duration: 0.3), value: bothClientsConnected)
+            }
             
-            // Server u sredini
-            topologyNode(
+            // Server u sredini - UVIJEK na istoj poziciji
+            TopologyNodeView(
+                nodeID: "server",
                 label: "Relay Server",
                 isConnected: roomSessionA.isSessionReady || roomSessionB.isSessionReady,
-                geometry: geometry,
                 isServer: true,
+                isGateway: false,
+                isSwitch: false,
+                roomCode: "",
+                messageCount: 0,
+                privateIP: "",
+                publicIP: "",
+                port: "",
+                gateway: "",
+                macAddress: "",
                 serverIP: networkInfoA.serverIP,
-                showDetails: true
+                showDetails: bothClientsConnected
             )
             .frame(width: 120)
-            .position(x: serverX, y: centerY)
+            .position(x: serverX, y: nodeY)
+            .id("server")
+            .transaction { $0.animation = nil }
             
-            // Gateway B
-            topologyNode(
+            // Gateway B - pojavljuje se samo kada su spojeni
+            if bothClientsConnected {
+                TopologyNodeView(
+                    nodeID: "gatewayB",
                 label: "Gateway B",
                 isConnected: true,
-                geometry: geometry,
+                    isServer: false,
                 isGateway: true,
+                    isSwitch: false,
+                    roomCode: "",
+                    messageCount: 0,
                 privateIP: networkInfoB.privateIP,
                 publicIP: networkInfoB.publicIP,
+                    port: "",
+                    gateway: gatewayB,
                 macAddress: networkInfoB.macAddress,
-                gateway: gatewayB,
+                    serverIP: "",
                 showDetails: true
             )
             .frame(width: 120)
-            .position(x: gatewayBX, y: centerY)
+                .position(x: gatewayBX, y: nodeY)
+                .zIndex(10)
+                .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                .animation(.easeInOut(duration: 0.3), value: bothClientsConnected)
+            }
             
-            // Client B desno
-            topologyNode(
+            // Client B desno - UVIJEK na istoj poziciji
+            TopologyNodeView(
+                nodeID: "clientB",
                 label: "Client B",
                 isConnected: roomSessionB.isSessionReady,
-                geometry: geometry,
+                isServer: false,
+                isGateway: false,
+                isSwitch: false,
                 roomCode: clientBCode,
                 messageCount: roomSessionB.messages.count,
                 privateIP: networkInfoB.privateIP,
                 publicIP: networkInfoB.publicIP,
                 port: networkInfoB.port,
                 gateway: gatewayB,
-                showDetails: true
+                macAddress: "",
+                serverIP: "",
+                showDetails: bothClientsConnected
             )
             .frame(width: 120)
-            .position(x: clientBX, y: centerY)
-            
-            // Crvene točke za spajanje linija (na vanjskom rubu kruga - 0° i 180°, malo iznad sredine)
-            // Client A: desna strana (0° - vanjski rub, malo gore)
-            Circle()
-                .fill(Color.red)
-                .frame(width: 6, height: 6)
-                .position(x: clientAX + clientRadius, y: centerY - clientRadius * 0.3)
-            
-            // Gateway A: lijeva i desna strana (180° i 0° - vanjski rub, malo gore)
-            Circle()
-                .fill(Color.red)
-                .frame(width: 6, height: 6)
-                .position(x: gatewayAX - gatewayRadius, y: centerY - gatewayRadius * 0.3)
-            
-            Circle()
-                .fill(Color.red)
-                .frame(width: 6, height: 6)
-                .position(x: gatewayAX + gatewayRadius, y: centerY - gatewayRadius * 0.3)
-            
-            // Server: lijeva i desna strana (180° i 0° - vanjski rub, malo gore)
-            Circle()
-                .fill(Color.red)
-                .frame(width: 6, height: 6)
-                .position(x: serverX - serverRadius, y: centerY - serverRadius * 0.3)
-            
-            Circle()
-                .fill(Color.red)
-                .frame(width: 6, height: 6)
-                .position(x: serverX + serverRadius, y: centerY - serverRadius * 0.3)
-            
-            // Gateway B: lijeva i desna strana (180° i 0° - vanjski rub, malo gore)
-            Circle()
-                .fill(Color.red)
-                .frame(width: 6, height: 6)
-                .position(x: gatewayBX - gatewayRadius, y: centerY - gatewayRadius * 0.3)
-            
-            Circle()
-                .fill(Color.red)
-                .frame(width: 6, height: 6)
-                .position(x: gatewayBX + gatewayRadius, y: centerY - gatewayRadius * 0.3)
-            
-            // Client B: lijeva strana (180° - vanjski rub, malo gore)
-            Circle()
-                .fill(Color.red)
-                .frame(width: 6, height: 6)
-                .position(x: clientBX - clientRadius, y: centerY - clientRadius * 0.3)
+            .position(x: clientBX, y: nodeY)
+            .id("clientB")
+            .transaction { $0.animation = nil }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -428,6 +388,24 @@ struct RealConnectTopologyView: View {
         }
     }
     
+    /// Pokreni animaciju impulsa
+    private func startImpulse(direction: ImpulseDirection) {
+        impulseDirection = .none
+        impulseProgress = 0
+        
+        DispatchQueue.main.async {
+            self.impulseDirection = direction
+            withAnimation(.linear(duration: 2.0)) {
+                self.impulseProgress = 1.0
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.1) {
+                self.impulseDirection = .none
+                self.impulseProgress = 0
+            }
+        }
+    }
+    
     /// Osvježi mrežne informacije nakon što su se oba clienta spojila
     private func refreshNetworkInfoAfterConnection() {
         // Osvježi informacije kada su oba clienta spojena
@@ -448,348 +426,439 @@ struct RealConnectTopologyView: View {
                 }
             }
         }
-        
     }
     
     
     // MARK: - Connection Lines
     
+    struct ConnectionPointKey: PreferenceKey {
+        static var defaultValue: [String: CGPoint] = [:]
+        static func reduce(value: inout [String: CGPoint], nextValue: () -> [String: CGPoint]) {
+            value.merge(nextValue(), uniquingKeysWith: { $1 })
+        }
+    }
+    
+    struct ConnectionPointAnchorKey: PreferenceKey {
+        static var defaultValue: [String: Anchor<CGPoint>] = [:]
+        static func reduce(value: inout [String: Anchor<CGPoint>], nextValue: () -> [String: Anchor<CGPoint>]) {
+            value.merge(nextValue(), uniquingKeysWith: { $1 })
+        }
+    }
+    
+    enum ConnectionSide {
+        case left
+        case right
+    }
+    
     @ViewBuilder
     private func connectionLines(geometry: GeometryProxy) -> some View {
-        if bothClientsConnected {
-            // Layout s gatewayima: Client A → Gateway A → Server ← Gateway B ← Client B
-            drawGatewayLines(geometry: geometry)
-        } else {
-            // Početni trokutni layout: Client A → Server ← Client B (bez gatewaya)
-            drawInitialTriangleLines(geometry: geometry)
-        }
-    }
-    
-    /// Početne linije - horizontalna linija (Client A → Server ← Client B)
-    @ViewBuilder
-    private func drawInitialTriangleLines(geometry: GeometryProxy) -> some View {
-        // Pozicije centara u horizontalnoj liniji
-        let centerY = geometry.size.height / 2
-        let padding: CGFloat = 40
-        let nodeWidth: CGFloat = 120
-        let spacing: CGFloat = 30
+        // Koristi stvarne pozicije točaka iz PreferenceKey
+        let clientARightPoint = connectionPoints["clientA-right"] ?? CGPoint.zero
+        let serverLeftPoint = connectionPoints["server-left"] ?? CGPoint.zero
+        let serverRightPoint = connectionPoints["server-right"] ?? CGPoint.zero
+        let clientBLeftPoint = connectionPoints["clientB-left"] ?? CGPoint.zero
         
-        // Izračunaj pozicije (sve u horizontalnoj liniji) - mora biti identično kao u layoutu
-        let clientAX = padding + nodeWidth / 2
-        let serverX = geometry.size.width / 2
-        let clientBX = geometry.size.width - padding - nodeWidth / 2
-        
-        // Radijusi krugova
-        let serverRadius: CGFloat = 30
-        let clientRadius: CGFloat = 25
-        
-        // Linije idu od vanjskog ruba kruga do vanjskog ruba kruga (0° i 180°, malo iznad sredine)
-        // Client A: desna strana (0° - vanjski rub, malo gore)
-        let clientAConnectionX = clientAX + clientRadius
-        let clientAConnectionY = centerY - clientRadius * 0.3
-        // Server: lijeva strana (180° - vanjski rub, malo gore)
-        let serverLeftConnectionX = serverX - serverRadius
-        let serverLeftConnectionY = centerY - serverRadius * 0.3
-        // Server: desna strana (0° - vanjski rub, malo gore)
-        let serverRightConnectionX = serverX + serverRadius
-        let serverRightConnectionY = centerY - serverRadius * 0.3
-        // Client B: lijeva strana (180° - vanjski rub, malo gore)
-        let clientBConnectionX = clientBX - clientRadius
-        let clientBConnectionY = centerY - clientRadius * 0.3
-        
-        // Client A to Server (siva horizontalna linija - malo iznad sredine)
-        Path { path in
-            path.move(to: CGPoint(x: clientAConnectionX, y: clientAConnectionY))
-            path.addLine(to: CGPoint(x: serverLeftConnectionX, y: serverLeftConnectionY))
-        }
-        .stroke(
-            Color.gray.opacity(0.6),
-            style: StrokeStyle(lineWidth: 2)
-        )
-        
-        // Server to Client B (siva horizontalna linija - malo iznad sredine)
-        Path { path in
-            path.move(to: CGPoint(x: serverRightConnectionX, y: serverRightConnectionY))
-            path.addLine(to: CGPoint(x: clientBConnectionX, y: clientBConnectionY))
-        }
-        .stroke(
-            Color.gray.opacity(0.6),
-            style: StrokeStyle(lineWidth: 2)
-        )
-    }
-    
-    /// Linije s gatewayima: Client A → Gateway A → Server ← Gateway B ← Client B (horizontalna linija)
-    @ViewBuilder
-    private func drawGatewayLines(geometry: GeometryProxy) -> some View {
-        // Pozicije centara u horizontalnoj liniji - ISTE kao u layoutWithGateways
-        let centerY = geometry.size.height / 2
-        let padding: CGFloat = 40
-        let nodeWidth: CGFloat = 120
-        
-        // Izračunaj pozicije - ISTE kao u layoutWithGateways
-        let clientAX = padding + nodeWidth / 2
-        let serverX = geometry.size.width / 2
-        let clientBX = geometry.size.width - padding - nodeWidth / 2
-        
-        // Gatewayi se stvaraju između elemenata (sredina između njih)
-        let gatewayAX = (clientAX + serverX) / 2  // Sredina između Client A i Server
-        let gatewayBX = (serverX + clientBX) / 2  // Sredina između Server i Client B
-        
-        // Radijusi krugova
-        let serverRadius: CGFloat = 30
-        let gatewayRadius: CGFloat = 25
-        let clientRadius: CGFloat = 25
-        
-        // Connection točke na vanjskom rubu kruga (0° i 180°, malo iznad sredine)
-        // Client A: desna strana (0° - vanjski rub, malo gore)
-        let clientAConnectionX = clientAX + clientRadius
-        let clientAConnectionY = centerY - clientRadius * 0.3
-        // Gateway A: lijeva i desna strana (180° i 0° - vanjski rub, malo gore)
-        let gatewayALeftConnectionX = gatewayAX - gatewayRadius
-        let gatewayALeftConnectionY = centerY - gatewayRadius * 0.3
-        let gatewayARightConnectionX = gatewayAX + gatewayRadius
-        let gatewayARightConnectionY = centerY - gatewayRadius * 0.3
-        // Server: lijeva i desna strana (180° i 0° - vanjski rub, malo gore)
-        let serverLeftConnectionX = serverX - serverRadius
-        let serverLeftConnectionY = centerY - serverRadius * 0.3
-        let serverRightConnectionX = serverX + serverRadius
-        let serverRightConnectionY = centerY - serverRadius * 0.3
-        // Gateway B: lijeva i desna strana (180° i 0° - vanjski rub, malo gore)
-        let gatewayBLeftConnectionX = gatewayBX - gatewayRadius
-        let gatewayBLeftConnectionY = centerY - gatewayRadius * 0.3
-        let gatewayBRightConnectionX = gatewayBX + gatewayRadius
-        let gatewayBRightConnectionY = centerY - gatewayRadius * 0.3
-        // Client B: lijeva strana (180° - vanjski rub, malo gore)
-        let clientBConnectionX = clientBX - clientRadius
-        let clientBConnectionY = centerY - clientRadius * 0.3
-        
-        // Client A to Gateway A (siva horizontalna linija - malo iznad sredine)
-        Path { path in
-            path.move(to: CGPoint(x: clientAConnectionX, y: clientAConnectionY))
-            path.addLine(to: CGPoint(x: gatewayALeftConnectionX, y: gatewayALeftConnectionY))
-        }
-        .stroke(Color.gray.opacity(0.6), style: StrokeStyle(lineWidth: 2))
-        
-        // Gateway A to Server (siva horizontalna linija - malo iznad sredine)
-        Path { path in
-            path.move(to: CGPoint(x: gatewayARightConnectionX, y: gatewayARightConnectionY))
-            path.addLine(to: CGPoint(x: serverLeftConnectionX, y: serverLeftConnectionY))
-        }
-        .stroke(Color.gray.opacity(0.6), style: StrokeStyle(lineWidth: 2))
-        
-        // Server to Gateway B (siva horizontalna linija - malo iznad sredine)
-        Path { path in
-            path.move(to: CGPoint(x: serverRightConnectionX, y: serverRightConnectionY))
-            path.addLine(to: CGPoint(x: gatewayBLeftConnectionX, y: gatewayBLeftConnectionY))
-        }
-        .stroke(Color.gray.opacity(0.6), style: StrokeStyle(lineWidth: 2))
-        
-        // Gateway B to Client B (siva horizontalna linija - malo iznad sredine)
-        Path { path in
-            path.move(to: CGPoint(x: gatewayBRightConnectionX, y: gatewayBRightConnectionY))
-            path.addLine(to: CGPoint(x: clientBConnectionX, y: clientBConnectionY))
-        }
-        .stroke(Color.gray.opacity(0.6), style: StrokeStyle(lineWidth: 2))
-    }
-    
-    // MARK: - Topology Node
-    
-    @ViewBuilder
-    private func topologyNode(
-        label: String,
-        isConnected: Bool,
-        geometry: GeometryProxy,
-        isServer: Bool = false,
-        isSwitch: Bool = false,
-        isGateway: Bool = false,
-        roomCode: String = "",
-        messageCount: Int = 0,
-        privateIP: String = "",
-        publicIP: String = "",
-        macAddress: String = "",
-        serverIP: String = "",
-        port: String = "",
-        gateway: String = "",
-        showDetails: Bool = true
-    ) -> some View {
-        ZStack(alignment: .top) {
-            // Node circle - fiksna pozicija na vrhu
-            ZStack {
-                let circleSize: CGFloat = isServer ? 60 : (isGateway ? 50 : (isSwitch ? 50 : 50))
+        ZStack {
+            if bothClientsConnected {
+                let gatewayALeftPoint = connectionPoints["gatewayA-left"] ?? CGPoint.zero
+                let gatewayARightPoint = connectionPoints["gatewayA-right"] ?? CGPoint.zero
+                let gatewayBLeftPoint = connectionPoints["gatewayB-left"] ?? CGPoint.zero
+                let gatewayBRightPoint = connectionPoints["gatewayB-right"] ?? CGPoint.zero
                 
-                // Prozirna unutrašnjost za server, gateway i switch (siva boja)
+                let lineColor: Color = .green
+                
+                if clientARightPoint != .zero && gatewayALeftPoint != .zero {
+                    Path { path in
+                        path.move(to: clientARightPoint)
+                        path.addLine(to: gatewayALeftPoint)
+                    }
+                    .stroke(lineColor.opacity(0.6), style: StrokeStyle(lineWidth: 3))
+                }
+                
+                if gatewayARightPoint != .zero && serverLeftPoint != .zero {
+                    Path { path in
+                        path.move(to: gatewayARightPoint)
+                        path.addLine(to: serverLeftPoint)
+                    }
+                    .stroke(lineColor.opacity(0.6), style: StrokeStyle(lineWidth: 3))
+                }
+                
+                if serverRightPoint != .zero && gatewayBLeftPoint != .zero {
+                    Path { path in
+                        path.move(to: serverRightPoint)
+                        path.addLine(to: gatewayBLeftPoint)
+                    }
+                    .stroke(lineColor.opacity(0.6), style: StrokeStyle(lineWidth: 3))
+                }
+                
+                if gatewayBRightPoint != .zero && clientBLeftPoint != .zero {
+        Path { path in
+                        path.move(to: gatewayBRightPoint)
+                        path.addLine(to: clientBLeftPoint)
+                    }
+                    .stroke(lineColor.opacity(0.6), style: StrokeStyle(lineWidth: 3))
+                }
+                
+                // Impuls A → B
+                if impulseDirection == .aToB && impulseProgress > 0 {
+                    impulseView(
+                        from: clientARightPoint,
+                        via: [gatewayALeftPoint, gatewayARightPoint, serverLeftPoint, serverRightPoint, gatewayBLeftPoint, gatewayBRightPoint],
+                        to: clientBLeftPoint,
+                        progress: impulseProgress
+                    )
+                }
+                
+                // Impuls B → A
+                if impulseDirection == .bToA && impulseProgress > 0 {
+                    impulseView(
+                        from: clientBLeftPoint,
+                        via: [gatewayBRightPoint, gatewayBLeftPoint, serverRightPoint, serverLeftPoint, gatewayARightPoint, gatewayALeftPoint],
+                        to: clientARightPoint,
+                        progress: impulseProgress
+                    )
+                }
+            } else {
+                let lineColorA: Color = roomSessionA.isSessionReady ? .green : .gray
+                let lineColorB: Color = roomSessionB.isSessionReady ? .green : .gray
+                
+                if clientARightPoint != .zero && serverLeftPoint != .zero && roomSessionA.isSessionReady {
+                    Path { path in
+                        path.move(to: clientARightPoint)
+                        path.addLine(to: serverLeftPoint)
+                    }
+                    .stroke(lineColorA.opacity(0.6), style: StrokeStyle(lineWidth: 3))
+                }
+                
+                if serverRightPoint != .zero && clientBLeftPoint != .zero && roomSessionB.isSessionReady {
+        Path { path in
+                        path.move(to: serverRightPoint)
+                        path.addLine(to: clientBLeftPoint)
+                    }
+                    .stroke(lineColorB.opacity(0.6), style: StrokeStyle(lineWidth: 3))
+                }
+                
+                // Impuls A → B (bez gatewaya)
+                if impulseDirection == .aToB && impulseProgress > 0 && clientARightPoint != .zero && serverLeftPoint != .zero && serverRightPoint != .zero && clientBLeftPoint != .zero {
+                    impulseView(
+                        from: clientARightPoint,
+                        via: [serverLeftPoint, serverRightPoint],
+                        to: clientBLeftPoint,
+                        progress: impulseProgress
+                    )
+                }
+                
+                // Impuls B → A (bez gatewaya)
+                if impulseDirection == .bToA && impulseProgress > 0 && clientARightPoint != .zero && serverLeftPoint != .zero && serverRightPoint != .zero && clientBLeftPoint != .zero {
+                    impulseView(
+                        from: clientBLeftPoint,
+                        via: [serverRightPoint, serverLeftPoint],
+                        to: clientARightPoint,
+                        progress: impulseProgress
+                    )
+                }
+            }
+        }
+    }
+    
+    /// View za animirani impuls koji putuje po linijama
+    @ViewBuilder
+    private func impulseView(from: CGPoint, via: [CGPoint], to: CGPoint, progress: CGFloat) -> some View {
+        let allPoints = [from] + via.filter { $0 != .zero } + [to]
+        guard allPoints.count >= 2 else { return AnyView(EmptyView()) }
+        
+        let totalDistance = calculateTotalDistance(points: allPoints)
+        let currentDistance = totalDistance * progress
+        
+        let (currentPoint, _) = pointAtDistance(points: allPoints, distance: currentDistance)
+        
+        if currentPoint == .zero {
+            return AnyView(EmptyView())
+        }
+        
+        return AnyView(
+            Circle()
+                .fill(Color.white)
+                .frame(width: 10, height: 10)
+                .shadow(color: .green, radius: 6)
+                .overlay(
+                    Circle()
+                        .stroke(Color.green, lineWidth: 2)
+                )
+                .position(currentPoint)
+        )
+    }
+    
+    /// Izračunaj ukupnu udaljenost kroz sve točke
+    private func calculateTotalDistance(points: [CGPoint]) -> CGFloat {
+        guard points.count >= 2 else { return 0 }
+        var total: CGFloat = 0
+        for i in 0..<points.count - 1 {
+            let dx = points[i + 1].x - points[i].x
+            let dy = points[i + 1].y - points[i].y
+            total += sqrt(dx * dx + dy * dy)
+        }
+        return total
+    }
+    
+    /// Pronađi točku na određenoj udaljenosti kroz točke
+    private func pointAtDistance(points: [CGPoint], distance: CGFloat) -> (CGPoint, Int) {
+        guard points.count >= 2 else { return (points.first ?? .zero, 0) }
+        
+        var accumulated: CGFloat = 0
+        for i in 0..<points.count - 1 {
+            let dx = points[i + 1].x - points[i].x
+            let dy = points[i + 1].y - points[i].y
+            let segmentLength = sqrt(dx * dx + dy * dy)
+            
+            if accumulated + segmentLength >= distance {
+                let t = (distance - accumulated) / segmentLength
+                let x = points[i].x + t * dx
+                let y = points[i].y + t * dy
+                return (CGPoint(x: x, y: y), i)
+            }
+            
+            accumulated += segmentLength
+        }
+        
+        return (points.last ?? .zero, points.count - 1)
+    }
+    
+    // MARK: - Topology Node View (Parent Element)
+    
+    /// Parent element koji sadrži: krug, naziv, ikonu i točke
+    struct TopologyNodeView: View {
+        let nodeID: String
+        let label: String
+        let isConnected: Bool
+        let isServer: Bool
+        let isGateway: Bool
+        let isSwitch: Bool
+        let roomCode: String
+        let messageCount: Int
+        let privateIP: String
+        let publicIP: String
+        let port: String
+        let gateway: String
+        let macAddress: String
+        let serverIP: String
+        let showDetails: Bool
+        
+        // Fiksne dimenzije za sve nodeove
+        private let circleSize: CGFloat = 50 // Svi nodeovi iste veličine
+        private let circleRadius: CGFloat = 25
+        private let topSectionHeight: CGFloat = 90
+        
+        var body: some View {
+            GeometryReader { geometry in
+            // Glavni node (circle + label + status) - FIKSNE POZICIJE - NIKAD SE NE MIJENJA
+        VStack(spacing: 6) {
+                // Node circle s točkama
+            ZStack {
+                    // Krug
+                let borderColor: Color = isConnected ? .green : .gray
+                let fillColor: Color = Color.clear
+                
                 if isServer || isGateway || isSwitch {
                     Circle()
                         .fill(Color.clear)
                         .frame(width: circleSize, height: circleSize)
                         .overlay(
                             Circle()
-                                .stroke(Color.gray.opacity(0.7), lineWidth: 2.5) // Sivi obrub - malo deblji i tamniji
+                                .stroke(borderColor.opacity(0.7), lineWidth: 2.5)
                         )
                 } else {
-                    // Klijenti - normalna boja
                     Circle()
-                        .fill(isConnected ? Color.blue.opacity(0.8) : Color.gray.opacity(0.5))
+                        .fill(fillColor)
                         .frame(width: circleSize, height: circleSize)
                         .overlay(
                             Circle()
-                                .stroke(Color.gray.opacity(0.7), lineWidth: 2.5) // Sivi obrub - malo deblji i tamniji
+                                .stroke(borderColor.opacity(0.7), lineWidth: 2.5)
                         )
                 }
                 
-                // Ikone
+                    // Ikona - zelena kada je spojeno, siva kada nije
+                let iconColor: Color = isConnected ? .green : .gray
+                
                 if isServer {
                     Image(systemName: "server.rack")
                         .font(.system(size: 24, weight: .medium))
-                        .foregroundColor(isConnected ? .green : .gray)
+                        .foregroundColor(iconColor)
                 } else if isGateway {
-                    // Koristi Router.png ikonu
                     if let routerImage = loadRouterIcon() {
                         Image(nsImage: routerImage)
                             .resizable()
                             .scaledToFit()
                             .frame(width: 32, height: 32)
-                            .colorMultiply(isConnected ? .green.opacity(0.9) : .gray.opacity(0.9))
+                            .colorMultiply(iconColor)
                     } else {
                         Image(systemName: "router.fill")
                             .font(.system(size: 20, weight: .medium))
-                            .foregroundColor(isConnected ? .green : .gray)
+                            .foregroundColor(iconColor)
                     }
                 } else if isSwitch {
                     Image(systemName: "network")
                         .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(isConnected ? .green : .gray)
+                        .foregroundColor(iconColor)
                 } else {
                     Image(systemName: isConnected ? "laptopcomputer" : "laptopcomputer.slash")
                         .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(isConnected ? .green : .white)
+                        .foregroundColor(iconColor)
                 }
-            }
-            .frame(width: 120, height: 60) // Fiksna visina za krug
+                    
+                    // Točke - nevidljive ali se koriste za connection lines
+                    Circle()
+                        .fill(Color.clear)
+                        .frame(width: 6, height: 6)
+                        .offset(x: -circleRadius, y: 0)
+                    
+                    Circle()
+                        .fill(Color.clear)
+                        .frame(width: 6, height: 6)
+                        .offset(x: circleRadius, y: 0)
+                }
+                .frame(width: circleSize, height: circleSize)
+                .background(
+                    GeometryReader { circleGeometry in
+                        Color.clear
+                            .preference(
+                                key: ConnectionPointKey.self,
+                                value: [
+                                    "\(nodeID)-left": CGPoint(
+                                        x: circleGeometry.frame(in: .named("topology")).midX - circleRadius,
+                                        y: circleGeometry.frame(in: .named("topology")).midY
+                                    ),
+                                    "\(nodeID)-right": CGPoint(
+                                        x: circleGeometry.frame(in: .named("topology")).midX + circleRadius,
+                                        y: circleGeometry.frame(in: .named("topology")).midY
+                                    )
+                                ]
+                            )
+                    }
+                )
             
-            // Label i detalji ispod kruga
-            VStack(spacing: 4) {
-                Spacer()
-                    .frame(height: 60) // Visina kruga
-                
-                // Label
-                Text(label)
-                    .font(.caption.bold())
-                    .foregroundColor(.white.opacity(0.9))
-                
-                // Status text
-                if showDetails {
-                    Text(isConnected ? "Connected" : "Disconnected")
-                        .font(.caption2)
-                        .foregroundColor(isConnected ? .green.opacity(0.8) : .red.opacity(0.8))
-                }
-                
-                // IP adrese i MAC (za server i switch)
-                if showDetails && isServer && !serverIP.isEmpty && serverIP != "Unknown" {
-                    Text("IP: \(serverIP)")
+            // Label
+            Text(label)
+                .font(.caption.bold())
+                .foregroundColor(.white.opacity(0.9))
+                    .frame(height: 16)
+            
+                // Status text - UVIJEK zauzima prostor (fiksna visina)
+                Text(isConnected ? "Connected" : "Disconnected")
+                    .font(.caption2)
+                    .foregroundColor(isConnected ? .green.opacity(0.8) : .red.opacity(0.8))
+                    .opacity(showDetails ? 1.0 : 0.0)
+                    .frame(height: 14)
+            }
+            .frame(height: topSectionHeight, alignment: .top)
+            .frame(maxWidth: .infinity)
+            .clipped()
+            .overlay(alignment: .top) {
+                // Informacije ispod nodea (ne mijenjaju poziciju gornjeg dijela)
+                VStack(spacing: 2) {
+                    // IP adrese i MAC (za server)
+            if showDetails && isServer && !serverIP.isEmpty && serverIP != "Unknown" {
+                Text("IP: \(serverIP)")
+                    .font(.system(size: 9))
+                    .foregroundColor(.white.opacity(0.7))
+            }
+            
+                    // IP adrese i MAC (za gateway)
+            if showDetails && isGateway {
+                if !gateway.isEmpty && gateway != "Unknown" {
+                    Text("Gateway: \(gateway)")
                         .font(.system(size: 9))
                         .foregroundColor(.white.opacity(0.7))
                 }
-                
-                if showDetails && isGateway {
-                    if !gateway.isEmpty && gateway != "Unknown" {
-                        Text("Gateway: \(gateway)")
-                            .font(.system(size: 9))
-                            .foregroundColor(.white.opacity(0.7))
-                    }
-                    if !privateIP.isEmpty && privateIP != "Unknown" {
-                        Text("Private: \(privateIP)")
-                            .font(.system(size: 9))
-                            .foregroundColor(.white.opacity(0.7))
-                    }
-                    if !publicIP.isEmpty && publicIP != "Unknown" {
-                        Text("Public: \(publicIP)")
-                            .font(.system(size: 9))
-                            .foregroundColor(.white.opacity(0.7))
-                    }
-                    if !macAddress.isEmpty && macAddress != "Unknown" {
-                        Text("MAC: \(macAddress)")
-                            .font(.system(size: 9))
-                            .foregroundColor(.white.opacity(0.7))
-                    }
+                if !privateIP.isEmpty && privateIP != "Unknown" {
+                    Text("Private: \(privateIP)")
+                        .font(.system(size: 9))
+                        .foregroundColor(.white.opacity(0.7))
                 }
-                
-                if showDetails && isSwitch {
-                    if !privateIP.isEmpty && privateIP != "Unknown" {
-                        Text("Private: \(privateIP)")
-                            .font(.system(size: 9))
-                            .foregroundColor(.white.opacity(0.7))
-                    }
-                    if !publicIP.isEmpty && publicIP != "Unknown" {
-                        Text("Public: \(publicIP)")
-                            .font(.system(size: 9))
-                            .foregroundColor(.white.opacity(0.7))
-                    }
-                    if !macAddress.isEmpty && macAddress != "Unknown" {
-                        Text("MAC: \(macAddress)")
-                            .font(.system(size: 9))
-                            .foregroundColor(.white.opacity(0.7))
-                    }
+                if !publicIP.isEmpty && publicIP != "Unknown" {
+                    Text("Public: \(publicIP)")
+                        .font(.system(size: 9))
+                        .foregroundColor(.white.opacity(0.7))
                 }
-                
-                // IP adrese i port (za Client A i B)
-                if showDetails && !isServer && !isSwitch && !isGateway {
-                    if !privateIP.isEmpty && privateIP != "Unknown" {
-                        Text("Private: \(privateIP)")
-                            .font(.system(size: 9))
-                            .foregroundColor(.white.opacity(0.7))
-                    }
-                    if !publicIP.isEmpty && publicIP != "Unknown" {
-                        Text("Public: \(publicIP)")
-                            .font(.system(size: 9))
-                            .foregroundColor(.white.opacity(0.7))
-                    }
-                    if !port.isEmpty && port != "Unknown" {
-                        Text("Port: \(port)")
-                            .font(.system(size: 9))
-                            .foregroundColor(.white.opacity(0.7))
-                    }
-                }
-                
-                // Message count (only for clients)
-                if showDetails && !isServer && !isSwitch && !isGateway && isConnected && messageCount > 0 {
-                    HStack(spacing: 4) {
-                        Image(systemName: "message.fill")
-                            .font(.system(size: 8))
-                            .foregroundColor(.white.opacity(0.6))
-                        Text("\(messageCount)")
-                            .font(.caption2)
-                            .foregroundColor(.white.opacity(0.6))
-                    }
+                if !macAddress.isEmpty && macAddress != "Unknown" {
+                    Text("MAC: \(macAddress)")
+                        .font(.system(size: 9))
+                        .foregroundColor(.white.opacity(0.7))
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .top)
+            
+                    // IP adrese i MAC (za switch)
+            if showDetails && isSwitch {
+                if !privateIP.isEmpty && privateIP != "Unknown" {
+                    Text("Private: \(privateIP)")
+                        .font(.system(size: 9))
+                        .foregroundColor(.white.opacity(0.7))
+                }
+                if !publicIP.isEmpty && publicIP != "Unknown" {
+                    Text("Public: \(publicIP)")
+                        .font(.system(size: 9))
+                        .foregroundColor(.white.opacity(0.7))
+                }
+                if !macAddress.isEmpty && macAddress != "Unknown" {
+                    Text("MAC: \(macAddress)")
+                        .font(.system(size: 9))
+                        .foregroundColor(.white.opacity(0.7))
+                }
+            }
+            
+            // IP adrese i port (za Client A i B)
+            if showDetails && !isServer && !isSwitch && !isGateway {
+                if !privateIP.isEmpty && privateIP != "Unknown" {
+                    Text("Private: \(privateIP)")
+                        .font(.system(size: 9))
+                        .foregroundColor(.white.opacity(0.7))
+                }
+                if !publicIP.isEmpty && publicIP != "Unknown" {
+                    Text("Public: \(publicIP)")
+                        .font(.system(size: 9))
+                        .foregroundColor(.white.opacity(0.7))
+                }
+                if !port.isEmpty && port != "Unknown" {
+                    Text("Port: \(port)")
+                        .font(.system(size: 9))
+                        .foregroundColor(.white.opacity(0.7))
+                }
+            }
+            
+            // Message count (only for clients)
+            if showDetails && !isServer && !isSwitch && !isGateway && isConnected && messageCount > 0 {
+                HStack(spacing: 4) {
+                    Image(systemName: "message.fill")
+                        .font(.system(size: 8))
+                        .foregroundColor(.white.opacity(0.6))
+                    Text("\(messageCount)")
+                        .font(.caption2)
+                        .foregroundColor(.white.opacity(0.6))
+                }
+            }
         }
-        .frame(width: 120, alignment: .top)
-    }
-    
-    // MARK: - Helper Methods
-    
-    /// Učitava Router.png ikonu iz Shared/UX/Icons foldera
+                .offset(y: topSectionHeight)
+                .allowsHitTesting(false)
+            }
+            .frame(height: topSectionHeight, alignment: .top)
+            }
+        }
+        
+        // Helper za učitavanje Router ikone
     private func loadRouterIcon() -> NSImage? {
-        // Pokušaj učitati iz Shared/UX/Icons foldera
         if let imageURL = Bundle.main.url(forResource: "Router", withExtension: "png", subdirectory: "Shared/UX/Icons") {
             if let image = NSImage(contentsOf: imageURL) {
                 return image
             }
         }
-        
-        // Fallback: Pokušaj učitati direktno iz bundle-a
         if let imageURL = Bundle.main.url(forResource: "Router", withExtension: "png") {
             return NSImage(contentsOf: imageURL)
         }
-        
-        // Pokušaj učitati iz Assets.xcassets
         if let assetImage = NSImage(named: "Router") {
             return assetImage
         }
-        
         return nil
+        }
     }
 }
 
