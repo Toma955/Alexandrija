@@ -89,5 +89,3 @@ struct ActiveSessionsView: View {
     }
     
 }
-
-

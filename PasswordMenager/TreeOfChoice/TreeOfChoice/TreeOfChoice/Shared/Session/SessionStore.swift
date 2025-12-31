@@ -51,30 +51,8 @@ class SessionStore: ObservableObject {
         if let index = activeSessions.firstIndex(where: { $0.id == session.id }) {
             var updatedSession = session
             updatedSession.lastAccessed = Date()
-            updatedSession.isActive = true
             activeSessions[index] = updatedSession
             saveSessions()
-        }
-    }
-    
-    /// Pronađi sesiju po modeType-u
-    func findSession(modeType: SessionModeType) -> SessionMetadata? {
-        return activeSessions.first { $0.modeType == modeType && $0.isActive }
-    }
-    
-    /// Ažuriraj ili kreiraj sesiju za određeni modeType
-    func getOrCreateSession(modeType: SessionModeType) -> SessionMetadata {
-        if let existingSession = findSession(modeType: modeType) {
-            var updated = existingSession
-            updated.lastAccessed = Date()
-            updated.isActive = true
-            if let index = activeSessions.firstIndex(where: { $0.id == existingSession.id }) {
-                activeSessions[index] = updated
-                saveSessions()
-            }
-            return updated
-        } else {
-            return createSession(modeType: modeType)
         }
     }
     

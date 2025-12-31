@@ -146,9 +146,6 @@ struct RealConnectTopologyView: View {
             }
         }
         .padding(16)
-        .onChange(of: impulseProgress) { _ in
-            // Force view update
-        }
     }
     
     /// Unified layout - fiksne pozicije za Client A, Server i Client B, gatewayi se dodaju između
@@ -390,19 +387,14 @@ struct RealConnectTopologyView: View {
     
     /// Pokreni animaciju impulsa
     private func startImpulse(direction: ImpulseDirection) {
-        impulseDirection = .none
+        impulseDirection = direction
         impulseProgress = 0
         
-        DispatchQueue.main.async {
-            self.impulseDirection = direction
-            withAnimation(.linear(duration: 2.0)) {
-                self.impulseProgress = 1.0
-            }
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.1) {
-                self.impulseDirection = .none
-                self.impulseProgress = 0
-            }
+        withAnimation(.linear(duration: 1.5)) {
+            impulseProgress = 1.0
+        } completion: {
+            impulseDirection = .none
+            impulseProgress = 0
         }
     }
     
@@ -572,19 +564,11 @@ struct RealConnectTopologyView: View {
         
         let (currentPoint, _) = pointAtDistance(points: allPoints, distance: currentDistance)
         
-        if currentPoint == .zero {
-            return AnyView(EmptyView())
-        }
-        
         return AnyView(
             Circle()
                 .fill(Color.white)
-                .frame(width: 10, height: 10)
-                .shadow(color: .green, radius: 6)
-                .overlay(
-                    Circle()
-                        .stroke(Color.green, lineWidth: 2)
-                )
+                .frame(width: 8, height: 8)
+                .shadow(color: .green, radius: 4)
                 .position(currentPoint)
         )
     }
@@ -657,7 +641,14 @@ struct RealConnectTopologyView: View {
             ZStack {
                     // Krug
                 let borderColor: Color = isConnected ? .green : .gray
-                let fillColor: Color = Color.clear
+                let fillColor: Color = {
+                    if isServer || isGateway || isSwitch {
+                        return Color.clear
+                    } else {
+                        // Svi klijenti siva pozadina
+                        return Color.gray.opacity(0.5)
+                    }
+                }()
                 
                 if isServer || isGateway || isSwitch {
                     Circle()
@@ -690,7 +681,11 @@ struct RealConnectTopologyView: View {
                             .resizable()
                             .scaledToFit()
                             .frame(width: 32, height: 32)
-                            .colorMultiply(iconColor)
+                            .overlay(
+                                Rectangle()
+                                    .fill(iconColor)
+                                    .blendMode(.sourceAtop)
+                            )
                     } else {
                         Image(systemName: "router.fill")
                             .font(.system(size: 20, weight: .medium))

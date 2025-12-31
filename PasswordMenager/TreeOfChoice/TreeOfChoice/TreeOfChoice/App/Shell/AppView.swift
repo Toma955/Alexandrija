@@ -1,8 +1,5 @@
 // App/Shell/AppView.swift
 import SwiftUI
-#if os(macOS)
-import AppKit
-#endif
 
 struct AppView: View {
     @EnvironmentObject private var localization: LocalizationManager
@@ -10,7 +7,6 @@ struct AppView: View {
     @StateObject private var sessionStore = SessionStore()
     @State private var selectedMode: AppMode?
     @State private var showSettings = false
-    @State private var showAbout = false
     
     enum AppMode {
         case labConnect
@@ -27,7 +23,7 @@ struct AppView: View {
         Group {
             if let mode = selectedMode {
                 // Show ModeWindowView instead of home screen
-                ModeWindowView(selectedMode: $selectedMode, initialTab: mapToModeTab(mode), sessionStore: sessionStore)
+                ModeWindowView(selectedMode: $selectedMode, initialTab: mapToModeTab(mode))
                     .environmentObject(localization)
                     .transition(.opacity)
             } else {
@@ -36,26 +32,10 @@ struct AppView: View {
             }
         }
         .animation(.easeInOut, value: selectedMode)
-        .onChange(of: selectedMode) { newMode in
-            // Kada se izađe iz moda (vrati se na home), osiguraj da sesija ostane aktivna
-            if newMode == nil {
-                // Ažuriraj zadnju sesiju da ostane aktivna
-                if let currentSession = sessionStore.activeSessions.last {
-                    var updatedSession = currentSession
-                    updatedSession.lastAccessed = Date()
-                    updatedSession.isActive = true
-                    sessionStore.updateSession(updatedSession)
-                }
-            }
-        }
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environmentObject(localization)
                 .environmentObject(appSettings)
-        }
-        .sheet(isPresented: $showAbout) {
-            AboutView()
-                .environmentObject(localization)
         }
     }
     
@@ -79,50 +59,18 @@ struct AppView: View {
                     
                     Spacer()
                     
-                    // Action buttons
-                    HStack(spacing: 12) {
-                        // About button
-                        Button(action: {
-                            showAbout = true
-                        }) {
-                            Image(systemName: "info.circle.fill")
-                                .font(.title3)
-                                .foregroundColor(.white.opacity(0.8))
-                                .padding(8)
-                                .background(Color.white.opacity(0.1))
-                                .cornerRadius(8)
-                        }
-                        .buttonStyle(.plain)
-                        .help("About")
-                        
-                        // Settings button
-                        Button(action: {
-                            showSettings = true
-                        }) {
-                            Image(systemName: "gearshape.fill")
-                                .font(.title3)
-                                .foregroundColor(.white.opacity(0.8))
-                                .padding(8)
-                                .background(Color.white.opacity(0.1))
-                                .cornerRadius(8)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Settings")
-                        
-                        // Exit button
-                        Button(action: {
-                            exitApplication()
-                        }) {
-                            Image(systemName: "power")
-                                .font(.title3)
-                                .foregroundColor(.white.opacity(0.8))
-                                .padding(8)
-                                .background(Color.white.opacity(0.1))
-                                .cornerRadius(8)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Exit")
+                    // Settings button
+                    Button(action: {
+                        showSettings = true
+                    }) {
+                        Image(systemName: "gearshape.fill")
+                            .font(.title3)
+                            .foregroundColor(.white.opacity(0.8))
+                            .padding(8)
+                            .background(Color.white.opacity(0.1))
+                            .cornerRadius(8)
                     }
+                    .buttonStyle(.plain)
                 }
 
                 // 7 komponenti (4 moda + Tree Library + Proces + Info)
@@ -272,16 +220,8 @@ struct AppView: View {
         case .realSecurity: return .realSecurity
         case .treeLibrary: return .treeLibrary
         case .treeCreator: return .treeCreator
-        case .watchmen: return nil // Watchmen nema AppMode još
+        case .watchmen: return nil // Watchmen nema AppMode
         }
-    }
-    
-    private func exitApplication() {
-        #if os(macOS)
-        NSApplication.shared.terminate(nil)
-        #else
-        exit(0)
-        #endif
     }
 }
 

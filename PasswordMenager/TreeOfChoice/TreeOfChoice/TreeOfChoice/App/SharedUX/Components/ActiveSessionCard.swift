@@ -91,4 +91,3 @@ struct ActiveSessionCard: View {
         return nil
     }
 }
-
