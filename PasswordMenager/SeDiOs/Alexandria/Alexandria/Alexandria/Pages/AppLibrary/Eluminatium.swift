@@ -124,6 +124,72 @@ struct SearchTextField: NSViewRepresentable {
 
 private let eluminatiumGreen = Color(hex: "1a5f2a")
 
+// MARK: - Dinamička zelena pozadina – polarna svjetlost (aurora)
+struct AuroraGreenBackgroundView: View {
+    private let darkGreen = Color(hex: "0a1810")
+    private let auroraGreen1 = Color(hex: "1a4d2e")
+    private let auroraGreen2 = Color(hex: "2d6a3e")
+    private let auroraGreen3 = Color(hex: "3d8b52")
+    private let auroraGlow = Color(hex: "5bb87a")
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1/30, paused: false)) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            let p1 = CGFloat(sin(t * 0.15) * 0.5 + 0.5)
+            let p2 = CGFloat(sin(t * 0.12 + 1) * 0.5 + 0.5)
+            let p3 = CGFloat(sin(t * 0.18 + 2) * 0.5 + 0.5)
+
+            ZStack {
+                darkGreen
+
+                // Prva traka – lijevo, pomiče se gore-dolje
+                Ellipse()
+                    .fill(
+                        RadialGradient(
+                            colors: [auroraGreen2.opacity(0.5), auroraGreen1.opacity(0.2), Color.clear],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: 280
+                        )
+                    )
+                    .frame(width: 600, height: 400)
+                    .offset(x: -200, y: 80 + p1 * 120)
+                    .blur(radius: 80)
+
+                // Druga traka – desno, sporija
+                Ellipse()
+                    .fill(
+                        RadialGradient(
+                            colors: [auroraGlow.opacity(0.35), auroraGreen3.opacity(0.2), Color.clear],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: 320
+                        )
+                    )
+                    .frame(width: 700, height: 450)
+                    .offset(x: 220, y: -60 + p2 * 100)
+                    .blur(radius: 90)
+
+                // Treća traka – sredina, najblaža
+                Ellipse()
+                    .fill(
+                        RadialGradient(
+                            colors: [auroraGreen3.opacity(0.25), auroraGreen2.opacity(0.1), Color.clear],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: 250
+                        )
+                    )
+                    .frame(width: 500, height: 350)
+                    .offset(x: 0, y: 100 + p3 * 80)
+                    .blur(radius: 70)
+            }
+        }
+        .drawingGroup(opaque: false)
+        .ignoresSafeArea()
+    }
+}
+
 struct EluminatiumView: View {
     @Binding var initialSearchQuery: String?
     @Binding var currentAddress: String
@@ -135,9 +201,8 @@ struct EluminatiumView: View {
 
     var body: some View {
         ZStack {
-            Color.black
-                .ignoresSafeArea()
-            
+            AuroraGreenBackgroundView()
+
             VStack(spacing: 0) {
                 switch content {
                 case .connecting:
@@ -362,9 +427,30 @@ struct EluminatiumShellView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let node = serverUINode {
-                VStack(spacing: 0) {
-                    HStack {
-                        Spacer(minLength: 0)
+                // ZStack: sadržaj s backenda u pozadini, unos (bijela kartica) točno u sredini ekrana
+                ZStack {
+                    AlexandriaRenderer(node: node)
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 24)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    SearchEngineSection(
+                        content: $content,
+                        initialSearchQuery: $initialSearchQuery,
+                        currentAddress: $currentAddress,
+                        onOpenSettings: onOpenSettings,
+                        onOpenAppFromSearch: onOpenAppFromSearch,
+                        shellStyle: true
+                    )
+                    .padding(.horizontal, 24)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                // Nema sadržaja s backenda – naslov + unos centrirani u sredini
+                ZStack {
+                    VStack(spacing: 20) {
+                        Text("Eluminatium")
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundColor(.white)
                         SearchEngineSection(
                             content: $content,
                             initialSearchQuery: $initialSearchQuery,
@@ -373,38 +459,8 @@ struct EluminatiumShellView: View {
                             onOpenAppFromSearch: onOpenAppFromSearch,
                             shellStyle: true
                         )
-                        .padding(.bottom, 16)
-                        Spacer(minLength: 0)
                     }
-                    .frame(maxWidth: .infinity)
                     .padding(.horizontal, 24)
-                    AlexandriaRenderer(node: node)
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 24)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ZStack {
-                    HStack(spacing: 0) {
-                        Spacer(minLength: 0)
-                        VStack(spacing: 20) {
-                            Text("Eluminatium")
-                                .font(.system(size: 28, weight: .bold))
-                                .foregroundColor(.white)
-                            SearchEngineSection(
-                                content: $content,
-                                initialSearchQuery: $initialSearchQuery,
-                                currentAddress: $currentAddress,
-                                onOpenSettings: onOpenSettings,
-                                onOpenAppFromSearch: onOpenAppFromSearch,
-                                shellStyle: true
-                            )
-                        }
-                        .padding(.horizontal, 24)
-                        Spacer(minLength: 0)
-                    }
-                    .frame(maxWidth: .infinity)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -544,6 +600,7 @@ struct SearchEngineSection: View {
         }
         .padding(24)
         .frame(maxWidth: 440)
+        .foregroundColor(shellStyle ? .black : .white)
         .background(
             RoundedRectangle(cornerRadius: 20)
                 .fill(Color.white)
@@ -844,11 +901,11 @@ struct SearchSuggestionsDropdown: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(app.name)
                                 .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(.white)
+                                .foregroundColor(shellStyle ? .black : .white)
                             if let desc = app.description {
                                 Text(desc)
                                     .font(.system(size: 11))
-                                    .foregroundColor(.white.opacity(0.6))
+                                    .foregroundColor(shellStyle ? .black.opacity(0.7) : .white.opacity(0.6))
                                     .lineLimit(1)
                             }
                         }
@@ -856,7 +913,7 @@ struct SearchSuggestionsDropdown: View {
                         if installingId == app.id {
                             ProgressView()
                                 .scaleEffect(0.7)
-                                .tint(.white)
+                                .tint(shellStyle ? .black : .white)
                         } else {
                             Image(systemName: "arrow.right.circle")
                                 .font(.system(size: 12))
@@ -866,7 +923,7 @@ struct SearchSuggestionsDropdown: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.white.opacity(0.06))
+                    .background(shellStyle ? Color.black.opacity(0.06) : Color.white.opacity(0.06))
                 }
                 .buttonStyle(.plain)
                 .disabled(installingId != nil)
