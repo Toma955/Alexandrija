@@ -629,10 +629,6 @@ struct SearchEngineSection: View {
             suggestions = []
             return
         }
-        if let url = URL(string: q), ["http", "https", "file"].contains(url.scheme?.lowercased() ?? "") {
-            suggestions = []
-            return
-        }
         suggestionsTask = Task {
             try? await Task.sleep(nanoseconds: 250_000_000)
             guard !Task.isCancelled else { return }
@@ -674,61 +670,13 @@ struct SearchEngineSection: View {
     private func performSearch(with query: String, source: EluminatiumRequestSource = .searchBar) {
         guard !query.isEmpty else { return }
 
-        // file:// – otvori samo Swift / .alexandria datoteke
-        if let url = URL(string: query), url.scheme?.lowercased() == "file" {
-            currentAddress = url.absoluteString
-            let ext = url.pathExtension.lowercased()
-            if ["html", "htm", "css", "js", "xhtml"].contains(ext) {
-                content = .error("Ova datoteka nije Swift aplikacija.\nOtvori .swift ili .alexandria datoteku.")
-            } else {
-                content = .loading
-                Task {
-                    await MainActor.run {
-                        ConsoleStore.shared.log("[\(EluminatiumRequestSource.url.rawValue)] Izvor: file | \(url.absoluteString)", type: .info)
-                    }
-                    do {
-                        let data = try Data(contentsOf: url)
-                        await MainActor.run {
-                            ConsoleStore.shared.log("[\(EluminatiumRequestSource.url.rawValue)] Odgovor: file, \(data.count) B", type: .info)
-                        }
-                        if let str = String(data: data, encoding: .utf8) {
-                            await MainActor.run {
-                                if looksLikeHTML(str) {
-                                    content = .error("Ova datoteka nije Swift aplikacija.\nOtvori .swift ili .alexandria datoteku.")
-                                } else {
-                                    let parsed = tryParseAndRender(str)
-                                    if case .app(let node) = parsed {
-                                        let name = url.lastPathComponent
-                                        content = .pageList([.file(name: name, node: node)])
-                                    } else {
-                                        content = parsed
-                                    }
-                                }
-                                currentAddress = url.absoluteString
-                            }
-                        } else {
-                            await MainActor.run { content = .error("Datoteka nije UTF-8") }
-                        }
-                    } catch {
-                        await MainActor.run {
-                            content = .error(error.localizedDescription)
-                        }
-                    }
-                }
-            }
-            return
-        }
-
-        // Izdvoji pojam za pretragu (npr. "google" iz "google.com") – Eluminatium pretražuje isključivo svoj katalog
+        // Samo Eluminatium katalog – što god korisnik upisao = pretraga kataloga
         var searchQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let url = URL(string: query), ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
+        if let url = URL(string: query), ["http", "https"].contains(url.scheme?.lowercased() ?? ""), let host = url.host, !host.isEmpty {
             currentAddress = url.absoluteString
-            if let host = url.host, !host.isEmpty {
-                searchQuery = host
-            }
+            searchQuery = host
         }
 
-        // Eluminatium pretražuje svoj katalog (app browser, ne web)
         content = .loading
         let baseURL = SearchEngineManager.shared.selectedEngineURL
             .trimmingCharacters(in: .whitespaces)
@@ -739,7 +687,7 @@ struct SearchEngineSection: View {
                 let apps = try await EluminatiumService.shared.search(query: searchQuery, source: source)
                 await MainActor.run {
                     if apps.isEmpty {
-                        content = .error("Nema aplikacije „\(searchQuery)“ u Eluminatium katalogu.\nUnesi ime aplikacije ili file:// do .swift datoteke.")
+                        content = .error("Nema aplikacije „\(searchQuery)“ u katalogu.")
                     } else {
                         content = .pageList(apps.map { .catalog($0) })
                         currentAddress = searchURL
@@ -753,16 +701,7 @@ struct SearchEngineSection: View {
             }
         }
     }
-    
-    /// Alexandria ne renderira HTML/CSS/JS – detekcija za blokiranje
-    private func looksLikeHTML(_ source: String) -> Bool {
-        let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return trimmed.hasPrefix("<!doctype") || trimmed.hasPrefix("<html") ||
-               trimmed.contains("<head") || trimmed.contains("<body") ||
-               trimmed.hasPrefix("<script") || trimmed.hasPrefix("<style")
-    }
-    
-    /// Pokušaj parsirati kao Swift (Alexandria format) → render. HTML/CSS/JS se blokira.
+
     private func tryParseAndRender(_ source: String) -> EluminatiumContent {
         let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
         let swiftViewKeywords = ["vstack", "hstack", "zstack", "scrollview", "list", "form", "grid", "tabview", "group", "groupbox", "section", "disclosuregroup", "text", "button", "image", "label", "link", "textfield", "securefield", "texteditor", "toggle", "slider", "stepper", "picker", "progressview", "gauge", "menu", "spacer", "divider", "color", "rectangle", "circle", "roundedrectangle", "ellipse", "capsule", "lazyvstack", "lazyhstack", "padding", "frame", "position", "positioned", "background", "foreground"]
