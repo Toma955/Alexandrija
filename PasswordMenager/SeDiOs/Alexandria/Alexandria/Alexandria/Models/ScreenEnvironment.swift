@@ -131,10 +131,15 @@ extension EnvironmentValues {
     }
 }
 
-// MARK: - Preference za reaktivno ažuriranje
+// MARK: - Preference za reaktivno ažuriranje (Equatable da onPreferenceChange radi)
+private struct ScreenGeometryValue: Equatable {
+    let size: CGSize
+    let insets: EdgeInsets
+}
+
 private struct ScreenGeometryPreferenceKey: PreferenceKey {
-    static var defaultValue: (CGSize, EdgeInsets)? { nil }
-    static func reduce(value: inout (CGSize, EdgeInsets)?, nextValue: () -> (CGSize, EdgeInsets)?) {
+    static var defaultValue: ScreenGeometryValue? { nil }
+    static func reduce(value: inout ScreenGeometryValue?, nextValue: () -> ScreenGeometryValue?) {
         value = nextValue()
     }
 }
@@ -152,13 +157,13 @@ struct ScreenEnvironmentModifier: ViewModifier {
                     Color.clear
                         .preference(
                             key: ScreenGeometryPreferenceKey.self,
-                            value: (geometry.size, geometry.safeAreaInsets)
+                            value: ScreenGeometryValue(size: geometry.size, insets: geometry.safeAreaInsets)
                         )
                 }
             )
             .onPreferenceChange(ScreenGeometryPreferenceKey.self) { value in
-                guard let (size, insets) = value else { return }
-                env.updateFrom(size: size, insets: insets, colorScheme: colorScheme, isVisible: isSelectedTab)
+                guard let value else { return }
+                env.updateFrom(size: value.size, insets: value.insets, colorScheme: colorScheme, isVisible: isSelectedTab)
             }
             .onAppear {
                 env.updateFocus(isSelectedTab)

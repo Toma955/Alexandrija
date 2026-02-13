@@ -198,8 +198,7 @@ final class AlexandriaParser {
             return try parsePadding()
         case "frame":
             return try parseFrame()
-        case "position":
-        case "positioned":
+        case "position", "positioned":
             return try parsePositioned()
         case "background":
             return try parseBackground()
