@@ -544,7 +544,6 @@ struct SearchEngineSection: View {
             RoundedRectangle(cornerRadius: 20)
                 .fill(Color.white)
         )
-        .frame(maxWidth: .infinity)
         .onChange(of: searchText) { _, newValue in
             fetchSuggestionsDebounced(for: newValue)
         }
@@ -701,7 +700,7 @@ struct SearchEngineSection: View {
     /// Pokušaj parsirati kao Alexandria DSL → render. HTML/CSS/JS se blokira.
     private func tryParseAndRender(_ source: String) -> EluminatiumContent {
         let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
-        let dslKeywords = ["vstack", "hstack", "zstack", "scrollview", "list", "form", "grid", "tabview", "group", "groupbox", "section", "disclosuregroup", "text", "button", "image", "label", "link", "textfield", "securefield", "texteditor", "toggle", "slider", "stepper", "picker", "progressview", "gauge", "menu", "spacer", "divider", "color", "rectangle", "circle", "roundedrectangle", "ellipse", "capsule", "lazyvstack", "lazyhstack", "padding", "frame", "background", "foreground"]
+        let dslKeywords = ["vstack", "hstack", "zstack", "scrollview", "list", "form", "grid", "tabview", "group", "groupbox", "section", "disclosuregroup", "text", "button", "image", "label", "link", "textfield", "securefield", "texteditor", "toggle", "slider", "stepper", "picker", "progressview", "gauge", "menu", "spacer", "divider", "color", "rectangle", "circle", "roundedrectangle", "ellipse", "capsule", "lazyvstack", "lazyhstack", "padding", "frame", "position", "positioned", "background", "foreground"]
         let firstWord = trimmed.prefix(100).lowercased()
         let looksLikeDSL = dslKeywords.contains { firstWord.contains($0) }
         

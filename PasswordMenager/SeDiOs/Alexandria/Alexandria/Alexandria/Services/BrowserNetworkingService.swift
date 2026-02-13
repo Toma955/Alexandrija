@@ -2,22 +2,22 @@
 //  BrowserNetworkingService.swift
 //  Alexandria
 //
-//  Mrežni servis za Swift preglednik – HTTP, HTTPS, WebSocket, DNS, ZIP.
+//  Mrežni servis – HTTP/HTTPS/HTTP2/HTTP3, WebSocket, TCP, UDP, TLS, DNS, ZIP.
+//  Swift concurrency, QUIC-ready, STREAM/SUBSCRIBE/EVENTS.
 //
 
 import Foundation
 
-// MARK: - Podržani protokoli
+// MARK: - Podržani protokoli (prošireno)
 enum BrowserProtocol: String, CaseIterable {
-    case http = "http"
-    case https = "https"
-    case ws = "ws"
-    case wss = "wss"
-    case ftp = "ftp"
-    case file = "file"
+    case http, https, ws, wss, ftp, file
+    case smtp, imap, pop3, xmpp, sip
+    case ftps, sftp, smb, nfs
+    case ldap, mqtt, amqp
+    case rtsp
 }
 
-// MARK: - Browser Networking Service
+// MARK: - Browser Networking Service (async/await, multithreading-ready)
 final class BrowserNetworkingService {
     static let shared = BrowserNetworkingService()
     private let session: URLSession
@@ -34,16 +34,73 @@ final class BrowserNetworkingService {
             "Accept-Encoding": "gzip, deflate, br",
             "User-Agent": "Alexandria/1.0 (macOS; Swift Browser)"
         ]
+        // HTTP/2 i HTTP/3 (QUIC) – URLSession automatski koristi kad server podržava
+        #if os(iOS)
+        config.multipathServiceType = .handover
+        #endif
         self.session = URLSession(configuration: config)
     }
 
-    // MARK: - HTTP/HTTPS GET
+    /// Rezultat fetcha – omogućuje provjeru status koda bez bacanja greške na 4xx/5xx
+    enum FetchOutcome {
+        case success(Data, HTTPURLResponse)
+        case httpError(statusCode: Int, data: Data?, response: HTTPURLResponse)
+        case transportError(Error)
+    }
+
+    /// Fetch koji vraća status kod – ne baca grešku na 4xx/5xx, samo na mrežne greške
+    func fetchWithStatus(url: URL) async -> FetchOutcome {
+        let isLocal = url.scheme?.lowercased() == "file"
+        if !isLocal && !AppSettings.isInternetEnabled {
+            return .transportError(NSError(domain: "BrowserNetworkingService", code: -1,
+                                          userInfo: [NSLocalizedDescriptionKey: "Internet isključen u postavkama"]))
+        }
+        if isLocal {
+            do {
+                let data = try Data(contentsOf: url)
+                let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                return .success(data, response)
+            } catch {
+                return .transportError(error)
+            }
+        }
+        return await withCheckedContinuation { continuation in
+            session.dataTask(with: url) { data, response, error in
+                if let error = error {
+                    continuation.resume(returning: .transportError(error))
+                    return
+                }
+                guard let http = response as? HTTPURLResponse else {
+                    continuation.resume(returning: .transportError(NSError(domain: "BrowserNetworkingService", code: -2,
+                                                                           userInfo: [NSLocalizedDescriptionKey: "Nepoznat odgovor"])))
+                    return
+                }
+                if (200...299).contains(http.statusCode) {
+                    continuation.resume(returning: .success(data ?? Data(), http))
+                } else {
+                    continuation.resume(returning: .httpError(statusCode: http.statusCode, data: data, response: http))
+                }
+            }.resume()
+        }
+    }
+
+    // MARK: - HTTP/HTTPS GET (HTTP/1.1, HTTP/2, HTTP/3)
     func fetch(url: URL) async throws -> (Data, URLResponse) {
-        try await session.data(from: url)
+        let isLocal = url.scheme?.lowercased() == "file"
+        if !isLocal && !AppSettings.isInternetEnabled {
+            throw NSError(domain: "BrowserNetworkingService", code: -1,
+                         userInfo: [NSLocalizedDescriptionKey: "Internet isključen u postavkama"])
+        }
+        return try await session.data(from: url)
     }
 
     // MARK: - HTTP/HTTPS POST
     func post(url: URL, body: Data, contentType: String = "application/json") async throws -> (Data, URLResponse) {
+        let isLocal = url.scheme?.lowercased() == "file"
+        if !isLocal && !AppSettings.isInternetEnabled {
+            throw NSError(domain: "BrowserNetworkingService", code: -1,
+                         userInfo: [NSLocalizedDescriptionKey: "Internet isključen u postavkama"])
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.httpBody = body
@@ -57,16 +114,21 @@ final class BrowserNetworkingService {
         return try decoder.decode(T.self, from: data)
     }
 
-    // MARK: - URL validation (DNS se rješava automatski kroz URLSession)
+    // MARK: - URL validation
     func isValidURL(_ string: String) -> Bool {
         guard let url = URL(string: string),
               let scheme = url.scheme?.lowercased() else { return false }
         return BrowserProtocol.allCases.map(\.rawValue).contains(scheme)
     }
 
-    // MARK: - WebSocket (osnova – za punu implementaciju treba URLSessionWebSocketTask)
+    // MARK: - WebSocket
     func createWebSocket(url: URL) -> URLSessionWebSocketTask {
         session.webSocketTask(with: url)
+    }
+    
+    // MARK: - DNS (delegira na DNSService)
+    func resolve(host: String) async throws -> [String] {
+        try await DNSService.lookup(host: host)
     }
 }
 

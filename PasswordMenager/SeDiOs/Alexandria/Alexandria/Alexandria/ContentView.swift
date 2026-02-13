@@ -123,6 +123,7 @@ private struct ScreenElement: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .screenEnvironment(isSelectedTab: true)
         .ignoresSafeArea(edges: [.bottom, .leading, .trailing])
     }
 }

@@ -54,6 +54,7 @@ indirect enum AlexandriaViewNode: Equatable {
     case capsule
     case padding(CGFloat, child: AlexandriaViewNode)
     case frame(width: CGFloat?, height: CGFloat?, child: AlexandriaViewNode)
+    case positioned(x: CGFloat, y: CGFloat, width: CGFloat?, height: CGFloat?, child: AlexandriaViewNode)
     case background(String, child: AlexandriaViewNode)
     case foreground(String, child: AlexandriaViewNode)
 }

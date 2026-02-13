@@ -198,6 +198,9 @@ final class AlexandriaParser {
             return try parsePadding()
         case "frame":
             return try parseFrame()
+        case "position":
+        case "positioned":
+            return try parsePositioned()
         case "background":
             return try parseBackground()
         case "foreground":
@@ -805,6 +808,35 @@ final class AlexandriaParser {
         guard current == "}" else { throw AlexandriaParseError.expected("}") }
         advance()
         return .frame(width: width, height: height, child: child)
+    }
+    
+    private func parsePositioned() throws -> AlexandriaViewNode {
+        skipWhitespaceAndNewlines()
+        guard current == "(" else { throw AlexandriaParseError.expected("(") }
+        advance()
+        var x: CGFloat = 0, y: CGFloat = 0, width: CGFloat? = nil, height: CGFloat? = nil
+        while index < input.endIndex, current != ")" {
+            skipWhitespaceAndNewlines()
+            let id = parseIdentifier().lowercased()
+            skipWhitespaceAndNewlines()
+            if current == ":" { advance(); skipWhitespaceAndNewlines() }
+            if id == "x" { x = try parseCGFloat() }
+            else if id == "y" { y = try parseCGFloat() }
+            else if id == "width" { width = try parseCGFloat() }
+            else if id == "height" { height = try parseCGFloat() }
+            skipWhitespaceAndNewlines()
+            if current == "," { advance() }
+        }
+        guard current == ")" else { throw AlexandriaParseError.expected(")") }
+        advance()
+        skipWhitespaceAndNewlines()
+        guard current == "{" else { throw AlexandriaParseError.expected("{") }
+        advance()
+        let child = try parseView()
+        skipWhitespaceAndNewlines()
+        guard current == "}" else { throw AlexandriaParseError.expected("}") }
+        advance()
+        return .positioned(x: x, y: y, width: width, height: height, child: child)
     }
     
     private func parseBackground() throws -> AlexandriaViewNode {

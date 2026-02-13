@@ -97,6 +97,16 @@ struct AlexandriaRenderer: View {
             AnyView(render(child).padding(amount))
         case .frame(let width, let height, let child):
             AnyView(render(child).frame(width: width, height: height))
+        case .positioned(let x, let y, let width, let height, let child):
+            AnyView(
+                ZStack(alignment: .topLeading) {
+                    Color.clear
+                    render(child)
+                        .frame(width: width, height: height)
+                        .offset(x: x, y: y)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            )
         case .background(let hex, let child):
             AnyView(render(child).background(Color(hex: hex)))
         case .foreground(let hex, let child):
