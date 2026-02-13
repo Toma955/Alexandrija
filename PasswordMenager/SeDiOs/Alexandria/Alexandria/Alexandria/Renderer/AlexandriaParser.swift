@@ -85,6 +85,15 @@ final class AlexandriaParser {
         advance()
     }
     
+    /// Preskače opcionalne zagrade s bilo kojim sadržajem – npr. ZStack(), ZStack(spacing: 8)
+    private func skipOptionalSpacing() {
+        skipWhitespaceAndNewlines()
+        guard current == "(" else { return }
+        advance()
+        while index < input.endIndex, current != ")" { advance() }
+        if current == ")" { advance() }
+    }
+    
     private func parseIdentifier() -> String {
         var result = ""
         while index < input.endIndex, (input[index].isLetter || input[index].isNumber || input[index] == "_") {

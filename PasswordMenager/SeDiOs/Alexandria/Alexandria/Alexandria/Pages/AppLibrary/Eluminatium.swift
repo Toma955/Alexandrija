@@ -63,6 +63,7 @@ struct SearchTextField: NSViewRepresentable {
     let placeholder: String
     @Binding var text: String
     var onSubmit: (() -> Void)?
+    var textColor: NSColor = .white
 
     func makeNSView(context: Context) -> NSTextField {
         let tf = NSTextField(string: text)
@@ -72,7 +73,7 @@ struct SearchTextField: NSViewRepresentable {
         tf.isEditable = true
         tf.isSelectable = true
         tf.focusRingType = .none
-        tf.textColor = .white
+        tf.textColor = textColor
         tf.font = .systemFont(ofSize: 14)
         if let cell = tf.cell as? NSTextFieldCell {
             cell.placeholderAttributedString = NSAttributedString(
@@ -89,7 +90,7 @@ struct SearchTextField: NSViewRepresentable {
             nsView.stringValue = text
         }
         nsView.placeholderString = placeholder
-        nsView.textColor = .white
+        nsView.textColor = textColor
         context.coordinator.onSubmit = onSubmit
     }
 
@@ -134,7 +135,7 @@ struct EluminatiumView: View {
 
     var body: some View {
         ZStack {
-            eluminatiumGreen
+            Color.black
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -318,20 +319,24 @@ struct EluminatiumShellView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            Text("New York Times Eluminatium")
+            Text("Eluminatium")
                 .font(.system(size: 28, weight: .bold))
                 .foregroundColor(.white)
                 .padding(.top, 32)
                 .padding(.bottom, 20)
             
-            SearchEngineSection(
-                content: $content,
-                initialSearchQuery: $initialSearchQuery,
-                currentAddress: $currentAddress,
-                onOpenSettings: onOpenSettings,
-                onOpenAppFromSearch: onOpenAppFromSearch,
-                shellStyle: true
-            )
+            HStack {
+                Spacer(minLength: 0)
+                SearchEngineSection(
+                    content: $content,
+                    initialSearchQuery: $initialSearchQuery,
+                    currentAddress: $currentAddress,
+                    onOpenSettings: onOpenSettings,
+                    onOpenAppFromSearch: onOpenAppFromSearch,
+                    shellStyle: true
+                )
+                Spacer(minLength: 0)
+            }
             .padding(.horizontal, 24)
             .padding(.bottom, 24)
             
@@ -486,43 +491,31 @@ struct SearchEngineSection: View {
     private let accentColor = Color(hex: "ff5c00")
 
     var body: some View {
-        HoverProximityZone(isHovering: $isHovering, proximityPadding: shellStyle ? 0 : 80) {
-            VStack(alignment: .leading, spacing: isHovering ? 24 : 12) {
-                SearchBar(
-                    searchText: $searchText,
+        VStack(spacing: 12) {
+            SearchBar(
+                searchText: $searchText,
+                accentColor: accentColor,
+                onSubmit: { performSearch() },
+                shellStyle: shellStyle
+            )
+
+            if !suggestions.isEmpty && !searchText.trimmingCharacters(in: .whitespaces).isEmpty {
+                SearchSuggestionsDropdown(
+                    suggestions: suggestions,
                     accentColor: accentColor,
-                    onSubmit: { performSearch() },
+                    installingId: installingSuggestionId,
+                    onSelect: { selectSuggestion($0) },
                     shellStyle: shellStyle
                 )
-
-                if !suggestions.isEmpty && !searchText.trimmingCharacters(in: .whitespaces).isEmpty {
-                    SearchSuggestionsDropdown(
-                        suggestions: suggestions,
-                        accentColor: accentColor,
-                        installingId: installingSuggestionId,
-                        onSelect: { selectSuggestion($0) },
-                        shellStyle: shellStyle
-                    )
-                }
-
-                if isHovering {
-                    SearchSettingsRow(accentColor: accentColor, onOpenSettings: onOpenSettings)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                }
             }
-            .padding(24)
-            .frame(maxWidth: 520)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(shellStyle ? Color.white.opacity(0.15) : Color.black.opacity(0.6))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(isHovering ? accentColor.opacity(0.6) : Color.white.opacity(shellStyle ? 0.25 : 0.1), lineWidth: 1)
-                    )
-            )
-            .shadow(color: .black.opacity(shellStyle ? 0.2 : 0.4), radius: isHovering ? 24 : 12, x: 0, y: 8)
-            .animation(.spring(response: 0.45, dampingFraction: 0.8), value: isHovering)
         }
+        .padding(24)
+        .frame(maxWidth: 440)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color.white)
+        )
+        .frame(maxWidth: .infinity)
         .onChange(of: searchText) { _, newValue in
             fetchSuggestionsDebounced(for: newValue)
         }
@@ -867,41 +860,51 @@ struct SearchBar: View {
     var shellStyle: Bool = false
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "magnifyingglass")
-                .foregroundColor(accentColor)
-
+        VStack(spacing: 12) {
             SearchTextField(
-                placeholder: "Pretraži aplikacije ili unesi URL...",
+                placeholder: "",
                 text: $searchText,
-                onSubmit: onSubmit
+                onSubmit: onSubmit,
+                textColor: .black
             )
             .frame(maxWidth: .infinity)
-
-            Button {
-                onSubmit?()
-            } label: {
-                Image(systemName: "arrow.right.circle.fill")
-                    .font(.system(size: 20))
-                    .foregroundColor(accentColor)
-            }
-            .buttonStyle(.plain)
-            if !searchText.isEmpty {
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.white)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                    )
+            )
+            
+            HStack(spacing: 20) {
+                Button { } label: {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(.black)
+                }
+                .buttonStyle(.plain)
+                Button { } label: {
+                    Image(systemName: "keyboard")
+                        .font(.system(size: 18))
+                        .foregroundColor(.black)
+                }
+                .buttonStyle(.plain)
                 Button {
-                    searchText = ""
+                    onSubmit?()
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.white.opacity(0.5))
+                    Text("Go")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 10)
+                        .background(Capsule().fill(Color.black))
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(shellStyle ? Color.white.opacity(0.2) : Color.white.opacity(0.08))
-        )
     }
 }
 

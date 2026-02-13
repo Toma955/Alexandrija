@@ -49,6 +49,7 @@ indirect enum AlexandriaViewNode: Equatable {
     case color(String)
     case rectangle
     case roundedRectangle(cornerRadius: CGFloat)
+    case circle
     case ellipse
     case capsule
     case padding(CGFloat, child: AlexandriaViewNode)
