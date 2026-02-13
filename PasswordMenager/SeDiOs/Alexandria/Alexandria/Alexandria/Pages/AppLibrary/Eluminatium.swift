@@ -385,13 +385,11 @@ struct EluminatiumShellView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                Spacer(minLength: 0)
-                VStack(spacing: 20) {
-                    Text("Eluminatium")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(.white)
-                    HStack {
-                        Spacer(minLength: 0)
+                ZStack {
+                    VStack(spacing: 20) {
+                        Text("Eluminatium")
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundColor(.white)
                         SearchEngineSection(
                             content: $content,
                             initialSearchQuery: $initialSearchQuery,
@@ -400,14 +398,10 @@ struct EluminatiumShellView: View {
                             onOpenAppFromSearch: onOpenAppFromSearch,
                             shellStyle: true
                         )
-                        Spacer(minLength: 0)
                     }
-                    .frame(maxWidth: .infinity)
                     .padding(.horizontal, 24)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.top, 120)
-                Spacer(minLength: 0)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
