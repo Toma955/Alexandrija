@@ -319,29 +319,22 @@ struct EluminatiumShellView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            Text("Eluminatium")
-                .font(.system(size: 28, weight: .bold))
-                .foregroundColor(.white)
-                .padding(.top, 32)
-                .padding(.bottom, 20)
-            
-            HStack {
-                Spacer(minLength: 0)
-                SearchEngineSection(
-                    content: $content,
-                    initialSearchQuery: $initialSearchQuery,
-                    currentAddress: $currentAddress,
-                    onOpenSettings: onOpenSettings,
-                    onOpenAppFromSearch: onOpenAppFromSearch,
-                    shellStyle: true
-                )
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 24)
-            
             if let items = pageListItems, !items.isEmpty {
                 VStack(spacing: 0) {
+                    HStack {
+                        Spacer(minLength: 0)
+                        SearchEngineSection(
+                            content: $content,
+                            initialSearchQuery: $initialSearchQuery,
+                            currentAddress: $currentAddress,
+                            onOpenSettings: onOpenSettings,
+                            onOpenAppFromSearch: onOpenAppFromSearch,
+                            shellStyle: true
+                        )
+                        .padding(.bottom, 16)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 24)
                     HStack {
                         Button {
                             content = .idle(serverUI: serverUINode)
@@ -368,12 +361,48 @@ struct EluminatiumShellView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let node = serverUINode {
-                AlexandriaRenderer(node: node)
+                VStack(spacing: 0) {
+                    HStack {
+                        Spacer(minLength: 0)
+                        SearchEngineSection(
+                            content: $content,
+                            initialSearchQuery: $initialSearchQuery,
+                            currentAddress: $currentAddress,
+                            onOpenSettings: onOpenSettings,
+                            onOpenAppFromSearch: onOpenAppFromSearch,
+                            shellStyle: true
+                        )
+                        .padding(.bottom, 16)
+                        Spacer(minLength: 0)
+                    }
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 24)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    AlexandriaRenderer(node: node)
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 24)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                Spacer()
+                Spacer(minLength: 0)
+                VStack(spacing: 20) {
+                    Text("Eluminatium")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundColor(.white)
+                    HStack {
+                        Spacer(minLength: 0)
+                        SearchEngineSection(
+                            content: $content,
+                            initialSearchQuery: $initialSearchQuery,
+                            currentAddress: $currentAddress,
+                            onOpenSettings: onOpenSettings,
+                            onOpenAppFromSearch: onOpenAppFromSearch,
+                            shellStyle: true
+                        )
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 24)
+                }
+                Spacer(minLength: 0)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -494,7 +523,7 @@ struct SearchEngineSection: View {
         VStack(spacing: 12) {
             SearchBar(
                 searchText: $searchText,
-                accentColor: accentColor,
+                accentColor: shellStyle ? Color.black : accentColor,
                 onSubmit: { performSearch() },
                 shellStyle: shellStyle
             )
@@ -502,7 +531,7 @@ struct SearchEngineSection: View {
             if !suggestions.isEmpty && !searchText.trimmingCharacters(in: .whitespaces).isEmpty {
                 SearchSuggestionsDropdown(
                     suggestions: suggestions,
-                    accentColor: accentColor,
+                    accentColor: shellStyle ? Color.black : accentColor,
                     installingId: installingSuggestionId,
                     onSelect: { selectSuggestion($0) },
                     shellStyle: shellStyle
@@ -873,10 +902,6 @@ struct SearchBar: View {
             .background(
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color.white)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                    )
             )
             
             HStack(spacing: 20) {
