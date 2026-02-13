@@ -37,51 +37,37 @@ struct WindowAccessor: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
-// MARK: - Brušeno staklo (blur + tamni overlay)
-private struct FrostedGlassBackground: NSViewRepresentable {
-    var material: NSVisualEffectView.Material = .sidebar
-
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let v = NSVisualEffectView()
-        v.material = material
-        v.blendingMode = .behindWindow
-        v.state = .active
-        v.appearance = NSAppearance(named: .vibrantDark)
-        return v
-    }
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-        nsView.material = material
-        nsView.appearance = NSAppearance(named: .vibrantDark)
-    }
-}
-
 // MARK: - Tab model
-private enum TabType {
+private enum TabType: Equatable {
     case empty
     case search
+    case app(InstalledApp)
+    case devMode
 }
 
-private struct TabItem: Identifiable {
+private struct BrowserTabItem: Identifiable {
     let id: UUID
     let type: TabType
     var title: String {
         switch type {
         case .empty: return "Novi tab"
         case .search: return "Pretraži"
+        case .app(let app): return app.name
+        case .devMode: return "Dev Mode"
         }
     }
 }
 
-// MARK: - Tab (kvadrat s natpisom)
-private struct TabView: View {
-    let tab: TabItem
+// MARK: - Tab (obli pill s natpisom)
+private struct BrowserTabView: View {
+    let tab: BrowserTabItem
     let isSelected: Bool
     let onSelect: () -> Void
     let onClose: () -> Void
     private let accentColor = Color(hex: "ff5c00")
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 6) {
             Button {
                 onSelect()
             } label: {
@@ -94,59 +80,50 @@ private struct TabView: View {
                 onClose()
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(.red)
+                    .font(.system(size: 10))
+                    .foregroundColor(.red.opacity(0.8))
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .frame(height: 32)
+        .frame(height: 28)
         .background(
-            RoundedRectangle(cornerRadius: 10)
+            Capsule()
                 .fill(isSelected ? Color.gray.opacity(0.95) : Color.gray.opacity(0.9))
-        )
-    }
-}
-
-// MARK: - Lijevi element: obli kvadrat s 2 kruga (search, plus)
-private struct LeftSideElement: View {
-    let onPlusTap: () -> Void
-    let onSearchTap: () -> Void
-    private let accentColor = Color(hex: "ff5c00")
-
-    var body: some View {
-        HStack(spacing: 6) {
-            CircleButton(icon: "magnifyingglass", action: onSearchTap)  // search → Eluminatium
-            CircleButton(icon: "plus", action: onPlusTap)
-        }
-        .padding(6)
-        .frame(height: 32)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.gray)
         )
     }
 }
 
 // MARK: - Screen element – prostor za prikaz ekrana (tab sadržaj), od ruba do ruba
 private struct ScreenElement: View {
-    var selectedTab: TabItem?
+    var selectedTab: BrowserTabItem?
+    @Binding var initialSearchQuery: String?
+    @Binding var currentAddress: String
+    var onBackFromApp: (() -> Void)?
+    var onOpenAppFromSearch: ((InstalledApp) -> Void)?
+    var onSwitchToDevMode: (() -> Void)?
 
     var body: some View {
         Group {
             if let tab = selectedTab {
                 switch tab.type {
                 case .search:
-                    EluminatiumView()
+                    EluminatiumView(initialSearchQuery: $initialSearchQuery, currentAddress: $currentAddress, onOpenAppFromSearch: onOpenAppFromSearch, onSwitchToDevMode: onSwitchToDevMode)
                 case .empty:
                     Color.clear
+                        .onAppear { currentAddress = "" }
+                case .devMode:
+                    DevModeView(currentAddress: $currentAddress)
+                case .app(let app):
+                    InstalledAppView(app: app, currentAddress: $currentAddress, onBack: onBackFromApp, onSwitchToDevMode: onSwitchToDevMode)
                 }
             } else {
                 Color.clear
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .screenEnvironment(isSelectedTab: true)
         .ignoresSafeArea(edges: [.bottom, .leading, .trailing])
     }
 }
@@ -169,23 +146,65 @@ private struct CircleButton: View {
 }
 
 struct ContentView: View {
-    @State private var tabs: [TabItem] = [TabItem(id: UUID(), type: .empty)]
+    @ObservedObject private var manager = ProfileManager.shared
+    @AppStorage("appTheme") private var appThemeRaw = AppTheme.system.rawValue
+    @State private var tabs: [BrowserTabItem] = {
+        let type: TabType
+        switch AppSettings.onOpenAction {
+        case .search, .webBrowser: type = .search
+        case .empty: type = .empty
+        case .devMode: type = .devMode
+        }
+        return [BrowserTabItem(id: UUID(), type: type)]
+    }()
     @State private var selectedTabId: UUID?
+    @State private var showSettings = false
+    @State private var islandPhase2Expanded = false
+    @State private var islandSearchQuery: String?
+    @State private var currentAddress = ""
 
-    private var selectedTab: TabItem? {
+    private var selectedTab: BrowserTabItem? {
         if let id = selectedTabId, let tab = tabs.first(where: { $0.id == id }) {
             return tab
         }
         return tabs.first
     }
-
+    
     var body: some View {
+        ZStack {
+            if showSettings {
+                SettingsView(onClose: { showSettings = false })
+            } else if manager.hasActiveProfile && !manager.showProfilePicker {
+                mainContent(showSettings: $showSettings)
+            } else {
+                ProfilePickerView()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .preferredColorScheme(colorSchemeFromTheme)
+        .onAppear {
+            if selectedTabId == nil {
+                selectedTabId = tabs.first?.id
+            }
+        }
+    }
+    
+    private var colorSchemeFromTheme: ColorScheme? {
+        guard let theme = AppTheme(rawValue: appThemeRaw) else { return nil }
+        switch theme {
+        case .light: return .light
+        case .dark: return .dark
+        case .system: return nil
+        }
+    }
+    
+    private func mainContent(showSettings: Binding<Bool>) -> some View {
         VStack(spacing: 0) {
-            // Gornji bar: tabovi lijevo, Alexandria Island fiksno u sredini
+            // Bijeli element – tabovi + Island (sve kontrole u Islandu)
             ZStack {
                 HStack(spacing: 12) {
                     ForEach(tabs) { tab in
-                        TabView(
+                        BrowserTabView(
                             tab: tab,
                             isSelected: tab.id == selectedTabId,
                             onSelect: { selectedTabId = tab.id },
@@ -199,38 +218,57 @@ struct ContentView: View {
                             }
                         )
                     }
-
-                    LeftSideElement(
-                        onPlusTap: {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                let newTab = TabItem(id: UUID(), type: .empty)
-                                tabs.append(newTab)
-                                selectedTabId = newTab.id
-                            }
-                        },
-                        onSearchTap: {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                let newTab = TabItem(id: UUID(), type: .search)
-                                tabs.append(newTab)
-                                selectedTabId = newTab.id
-                            }
-                        }
-                    )
-
                     Spacer(minLength: 0)
                 }
 
                 AlexandriaIsland(
+                    isExpandedPhase2: $islandPhase2Expanded,
+                    currentAddress: $currentAddress,
+                    onOpenSettings: { showSettings.wrappedValue = true },
                     onOpenSearch: {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            let newTab = TabItem(id: UUID(), type: .search)
-                            tabs.append(newTab)
-                            selectedTabId = newTab.id
+                            if let searchTab = tabs.first(where: { $0.type == .search }) {
+                                selectedTabId = searchTab.id
+                            } else {
+                                let newTab = BrowserTabItem(id: UUID(), type: .search)
+                                tabs.append(newTab)
+                                selectedTabId = newTab.id
+                            }
+                        }
+                    },
+                    onSubmitFromInsertBar: { query in
+                        islandSearchQuery = query
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            if let searchTab = tabs.first(where: { $0.type == .search }) {
+                                selectedTabId = searchTab.id
+                            } else {
+                                let newTab = BrowserTabItem(id: UUID(), type: .search)
+                                tabs.append(newTab)
+                                selectedTabId = newTab.id
+                            }
+                        }
+                    },
+                    onOpenDevMode: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            if let devTab = tabs.first(where: { $0.type == .devMode }) {
+                                selectedTabId = devTab.id
+                            } else {
+                                let newTab = BrowserTabItem(id: UUID(), type: .devMode)
+                                tabs.append(newTab)
+                                selectedTabId = newTab.id
+                            }
                         }
                     },
                     onOpenNewTab: {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            let newTab = TabItem(id: UUID(), type: .empty)
+                            let newTab = BrowserTabItem(id: UUID(), type: .empty)
+                            tabs.append(newTab)
+                            selectedTabId = newTab.id
+                        }
+                    },
+                    onOpenAppFromLibrary: { app in
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            let newTab = BrowserTabItem(id: UUID(), type: .app(app))
                             tabs.append(newTab)
                             selectedTabId = newTab.id
                         }
@@ -243,19 +281,54 @@ struct ContentView: View {
             .frame(maxWidth: .infinity)
             .frame(height: 48)
             .background(Color.white)
+            .zIndex(10)
 
-            // Screen element – od ruba do ruba, počinje odmah ispod bijelog bara
-            ScreenElement(selectedTab: selectedTab)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Screen element – sadržaj taba (ispod bijelog elementa)
+            ScreenElement(
+                selectedTab: selectedTab,
+                initialSearchQuery: $islandSearchQuery,
+                currentAddress: $currentAddress,
+                onBackFromApp: {
+                    if case .app = selectedTab?.type {
+                        tabs.removeAll { $0.id == selectedTab?.id }
+                        selectedTabId = tabs.first?.id
+                    }
+                },
+                onOpenAppFromSearch: { app in
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        let newTab = BrowserTabItem(id: UUID(), type: .app(app))
+                        tabs.append(newTab)
+                        selectedTabId = newTab.id
+                    }
+                },
+                onSwitchToDevMode: {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        if let devTab = tabs.first(where: { $0.type == .devMode }) {
+                            selectedTabId = devTab.id
+                        } else {
+                            let newTab = BrowserTabItem(id: UUID(), type: .devMode)
+                            tabs.append(newTab)
+                            selectedTabId = newTab.id
+                        }
+                    }
+                }
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .zIndex(0)
+            .overlay {
+                // Overlay samo na sadržaju – klik zatvara Island, ali NE blokira toolbar (Island input)
+                if islandPhase2Expanded {
+                    Color.black.opacity(0.001)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            islandPhase2Expanded = false
+                        }
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .ignoresSafeArea(edges: .top)
-        .background(
-            ZStack {
-                FrostedGlassBackground().ignoresSafeArea()
-                Color.black.opacity(0.35).ignoresSafeArea()  // tamni overlay – jače zatamni
-            }
-        )
+        .background(AppBackgroundView().ignoresSafeArea())
         .overlay(
             WindowAccessor { window in
                 window.isOpaque = false

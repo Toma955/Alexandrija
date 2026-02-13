@@ -1,0 +1,41 @@
+//
+//  ConsoleStore.swift
+//  Alexandria
+//
+//  Console – log output za Alexandria renderer.
+//
+
+import Foundation
+import SwiftUI
+
+@MainActor
+final class ConsoleStore: ObservableObject {
+    static let shared = ConsoleStore()
+    
+    @Published var messages: [ConsoleMessage] = []
+    
+    private init() {}
+    
+    func log(_ text: String, type: ConsoleMessageType = .log) {
+        messages.append(ConsoleMessage(text: text, type: type, date: Date()))
+        print("[Eluminatium] \(text)")
+    }
+    
+    func clear() {
+        messages.removeAll()
+    }
+}
+
+struct ConsoleMessage: Identifiable {
+    let id = UUID()
+    let text: String
+    let type: ConsoleMessageType
+    let date: Date
+}
+
+enum ConsoleMessageType {
+    case log
+    case info
+    case warn
+    case error
+}
