@@ -32,7 +32,7 @@ final class BrowserNetworkingService {
         config.httpAdditionalHeaders = [
             "Accept": "*/*",
             "Accept-Encoding": "gzip, deflate, br",
-            "User-Agent": "Alexandria/1.0 (macOS; Swift Browser)"
+            "User-Agent": "Alexandria/1.0 (macOS; App Browser)"
         ]
         // HTTP/2 i HTTP/3 (QUIC) – URLSession automatski koristi kad server podržava
         #if os(iOS)

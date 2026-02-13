@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-/// Interna stranica za HTTP greške – prikazuje se kad browser/Eluminatium ne može učitati sadržaj
+/// Interna stranica za HTTP greške – prikazuje se kad Eluminatium ne odgovori
 struct ErrorPageView: View {
     let statusCode: Int
     let message: String?

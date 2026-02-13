@@ -144,7 +144,7 @@ final class EluminatiumService {
         }
     }
     
-    /// Preuzmi Swift izvornik s backenda (za render u Alexandria browseru)
+    /// Preuzmi Swift izvornik s backenda (za Alexandria app browser)
     func fetchDSL(appId: String) async throws -> String {
         guard !baseURL.isEmpty else {
             throw NSError(domain: "EluminatiumService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Dodaj pretraživač u postavkama"])

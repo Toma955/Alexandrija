@@ -17,7 +17,7 @@ enum OnOpenAction: String, CaseIterable, Codable {
     var label: String {
         switch self {
         case .search: return "Pretraživanje"
-        case .webBrowser: return "Web preglednik"
+        case .webBrowser: return "Pretraga aplikacija (Eluminatium)"
         case .empty: return "Prazno"
         case .devMode: return "Dev Mode"
         }

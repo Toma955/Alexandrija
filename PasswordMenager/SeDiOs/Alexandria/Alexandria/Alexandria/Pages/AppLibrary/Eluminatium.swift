@@ -2,7 +2,7 @@
 //  Eluminatium.swift
 //  Alexandria
 //
-//  Pretraživač - pozadina i search engine.
+//  App browser – pretragu obavlja isključivo Eluminatium (svoj katalog). Nema web pretrage.
 //
 
 import SwiftUI
@@ -674,15 +674,13 @@ struct SearchEngineSection: View {
     private func performSearch(with query: String, source: EluminatiumRequestSource = .searchBar) {
         guard !query.isEmpty else { return }
 
-        // URL? → Alexandria NE renderira HTML/CSS/JS – samo file:// za Swift
-        if let url = URL(string: query),
-           ["http", "https", "file"].contains(url.scheme?.lowercased() ?? "") {
+        // file:// – otvori samo Swift / .alexandria datoteke
+        if let url = URL(string: query), url.scheme?.lowercased() == "file" {
             currentAddress = url.absoluteString
-            if url.scheme?.lowercased() == "file" {
-                let ext = url.pathExtension.lowercased()
-                if ["html", "htm", "css", "js", "xhtml"].contains(ext) {
-                    content = .error("Alexandria ne renderira HTML/CSS/JS.\nKoristi samo Swift (.swift) datoteke.")
-                } else {
+            let ext = url.pathExtension.lowercased()
+            if ["html", "htm", "css", "js", "xhtml"].contains(ext) {
+                content = .error("Ova datoteka nije Swift aplikacija.\nOtvori .swift ili .alexandria datoteku.")
+            } else {
                 content = .loading
                 Task {
                     await MainActor.run {
@@ -696,7 +694,7 @@ struct SearchEngineSection: View {
                         if let str = String(data: data, encoding: .utf8) {
                             await MainActor.run {
                                 if looksLikeHTML(str) {
-                                    content = .error("Alexandria ne renderira HTML/CSS/JS.\nSadržaj izgleda kao web stranica.")
+                                    content = .error("Ova datoteka nije Swift aplikacija.\nOtvori .swift ili .alexandria datoteku.")
                                 } else {
                                     let parsed = tryParseAndRender(str)
                                     if case .app(let node) = parsed {
@@ -717,25 +715,31 @@ struct SearchEngineSection: View {
                         }
                     }
                 }
-                }
-            } else {
-                content = .error("Alexandria ne renderira HTML/CSS/JS.\nUnesi ime aplikacije za pretragu ili file:// putanju do .swift datoteke.")
             }
             return
         }
 
-        // Search query – pozovi Eluminatium search engine
+        // Izdvoji pojam za pretragu (npr. "google" iz "google.com") – Eluminatium pretražuje isključivo svoj katalog
+        var searchQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let url = URL(string: query), ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
+            currentAddress = url.absoluteString
+            if let host = url.host, !host.isEmpty {
+                searchQuery = host
+            }
+        }
+
+        // Eluminatium pretražuje svoj katalog (app browser, ne web)
         content = .loading
         let baseURL = SearchEngineManager.shared.selectedEngineURL
             .trimmingCharacters(in: .whitespaces)
             .replacingOccurrences(of: "/$", with: "", options: .regularExpression)
-        let searchURL = baseURL.isEmpty ? "" : "\(baseURL)/api/search?q=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query)"
+        let searchURL = baseURL.isEmpty ? "" : "\(baseURL)/api/search?q=\(searchQuery.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? searchQuery)"
         Task {
             do {
-                let apps = try await EluminatiumService.shared.search(query: query, source: source)
+                let apps = try await EluminatiumService.shared.search(query: searchQuery, source: source)
                 await MainActor.run {
                     if apps.isEmpty {
-                        content = .error("Nema – aplikacija „\(query)“ nije pronađena")
+                        content = .error("Nema aplikacije „\(searchQuery)“ u Eluminatium katalogu.\nUnesi ime aplikacije ili file:// do .swift datoteke.")
                     } else {
                         content = .pageList(apps.map { .catalog($0) })
                         currentAddress = searchURL
