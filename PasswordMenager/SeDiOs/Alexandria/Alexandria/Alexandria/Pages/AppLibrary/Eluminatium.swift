@@ -334,6 +334,7 @@ struct EluminatiumShellView: View {
                         .padding(.bottom, 16)
                         Spacer(minLength: 0)
                     }
+                    .frame(maxWidth: .infinity)
                     .padding(.horizontal, 24)
                     HStack {
                         Button {
@@ -375,6 +376,7 @@ struct EluminatiumShellView: View {
                         .padding(.bottom, 16)
                         Spacer(minLength: 0)
                     }
+                    .frame(maxWidth: .infinity)
                     .padding(.horizontal, 24)
                     AlexandriaRenderer(node: node)
                         .padding(.horizontal, 24)
@@ -400,8 +402,11 @@ struct EluminatiumShellView: View {
                         )
                         Spacer(minLength: 0)
                     }
+                    .frame(maxWidth: .infinity)
                     .padding(.horizontal, 24)
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 120)
                 Spacer(minLength: 0)
             }
         }
