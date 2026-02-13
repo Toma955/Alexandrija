@@ -2,8 +2,8 @@
 //  AlexandriaDSL.swift
 //  Alexandria
 //
-//  Alexandria DSL – Swift-like format za definiranje app stranice.
-//  Alexandria čita ovaj kod i renderira ga u SwiftUI.
+//  Alexandria Swift format – definicija app stranice.
+//  Alexandria parsira ovaj Swift kod i renderira ga u SwiftUI.
 //
 
 import Foundation
@@ -59,7 +59,7 @@ indirect enum AlexandriaViewNode: Equatable {
     case foreground(String, child: AlexandriaViewNode)
 }
 
-// MARK: - Primjer DSL koda (Swift-like)
+// MARK: - Primjer Swift koda (Alexandria format)
 /*
  VStack(spacing: 16) {
      Text("Dobrodošli")

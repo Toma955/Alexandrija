@@ -2,7 +2,7 @@
 //  AlexandriaParser.swift
 //  Alexandria
 //
-//  Parser – Swift-like DSL → AlexandriaViewNode tree.
+//  Parser – Swift (Alexandria format) → AlexandriaViewNode tree.
 //
 
 import Foundation

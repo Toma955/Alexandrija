@@ -7,7 +7,7 @@
 
 import Foundation
 
-/// Instalirana Alexandria DSL aplikacija
+/// Instalirana Alexandria Swift aplikacija
 struct InstalledApp: Identifiable, Equatable {
     let id: UUID
     let name: String

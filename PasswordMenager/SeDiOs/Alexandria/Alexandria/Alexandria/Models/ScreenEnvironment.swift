@@ -51,7 +51,7 @@ final class ScreenEnvironment: ObservableObject {
     @Published var orientation: String = "landscape"  // "portrait" | "landscape"
     @Published var rotationAngle: Double = 0
     
-    /// JSON reprezentacija za DSL/webapp
+    /// JSON reprezentacija konteksta (za Swift app)
     var jsonContext: [String: Any] {
         [
             "widthPx": widthPx,

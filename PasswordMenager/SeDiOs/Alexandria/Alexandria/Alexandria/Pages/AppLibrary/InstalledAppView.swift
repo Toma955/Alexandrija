@@ -2,12 +2,12 @@
 //  InstalledAppView.swift
 //  Alexandria
 //
-//  Prikaz instalirane Alexandria DSL aplikacije.
+//  Prikaz instalirane Alexandria Swift aplikacije.
 //
 
 import SwiftUI
 
-/// Prikazuje instaliranu aplikaciju – učitava DSL i renderira
+/// Prikazuje instaliranu aplikaciju – učitava Swift kod i renderira
 struct InstalledAppView: View {
     let app: InstalledApp
     @Binding var currentAddress: String

@@ -44,7 +44,7 @@ struct WebView: NSViewRepresentable {
     }
 }
 
-/// Wrapper za DSL WebView – prima URL string, prikazuje web stranicu
+/// Wrapper za WebView – prima URL string, prikazuje web stranicu
 struct WebViewWrapper: View {
     let urlString: String
     @State private var url: URL?

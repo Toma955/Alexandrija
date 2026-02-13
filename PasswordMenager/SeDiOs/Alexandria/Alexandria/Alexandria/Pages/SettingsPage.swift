@@ -722,7 +722,7 @@ private struct AboutSettingsSection: View {
                     Text("Alexandria 1.0")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
-                    Text("Swift app browser – brušeno staklo, Alexandria DSL, Eluminatium.")
+                    Text("Swift app browser – brušeno staklo, Alexandria Swift, Eluminatium.")
                         .font(.system(size: 13))
                         .foregroundColor(.white.opacity(0.7))
                 }

@@ -112,8 +112,8 @@ final class AppInstallService: ObservableObject {
         saveInstalledApps()
     }
     
-    // MARK: - Učitavanje DSL sadržaja
-    
+// MARK: - Učitavanje Swift sadržaja
+
     /// Učitava Swift izvorni kod iz entry point datoteke
     func loadDSLSource(for app: InstalledApp) throws -> String {
         let data = try Data(contentsOf: app.entryURL)

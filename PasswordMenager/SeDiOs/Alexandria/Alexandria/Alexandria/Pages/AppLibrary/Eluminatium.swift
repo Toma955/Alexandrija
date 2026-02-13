@@ -338,20 +338,20 @@ struct EluminatiumView: View {
                 do {
                     let node = try AlexandriaParser(source: dsl).parse()
                     await MainActor.run {
-                        ConsoleStore.shared.log("[Spajanje] DSL parsiran uspješno", type: .info)
+                        ConsoleStore.shared.log("[Spajanje] Swift kod parsiran uspješno", type: .info)
                         serverUINode = node
                         content = .idle(serverUI: node)
                         currentAddress = baseURL.isEmpty ? "" : baseURL
                     }
                 } catch let parseError as AlexandriaParseError {
                     await MainActor.run {
-                        ConsoleStore.shared.log("DSL greška: \(parseError.localizedDescription)", type: .error)
-                        content = .error("DSL greška: \(parseError.localizedDescription)\n\nKoristi „Lokalni mod“ ili „Dev Mode“ za detalje.")
+                        ConsoleStore.shared.log("Swift greška: \(parseError.localizedDescription)", type: .error)
+                        content = .error("Swift greška: \(parseError.localizedDescription)\n\nKoristi „Lokalni mod“ ili „Dev Mode“ za detalje.")
                     }
                 } catch {
                     await MainActor.run {
-                        ConsoleStore.shared.log("DSL greška: \(error.localizedDescription)", type: .error)
-                        content = .error("DSL greška: \(error.localizedDescription)\n\nKoristi „Lokalni mod“ ili „Dev Mode“ za detalje.")
+                        ConsoleStore.shared.log("Swift greška: \(error.localizedDescription)", type: .error)
+                        content = .error("Swift greška: \(error.localizedDescription)\n\nKoristi „Lokalni mod“ ili „Dev Mode“ za detalje.")
                     }
                 }
             } catch let httpErr as HTTPStatusError {
@@ -674,7 +674,7 @@ struct SearchEngineSection: View {
     private func performSearch(with query: String, source: EluminatiumRequestSource = .searchBar) {
         guard !query.isEmpty else { return }
 
-        // URL? → Alexandria NE renderira HTML/CSS/JS – samo file:// za DSL
+        // URL? → Alexandria NE renderira HTML/CSS/JS – samo file:// za Swift
         if let url = URL(string: query),
            ["http", "https", "file"].contains(url.scheme?.lowercased() ?? "") {
             currentAddress = url.absoluteString
@@ -758,18 +758,18 @@ struct SearchEngineSection: View {
                trimmed.hasPrefix("<script") || trimmed.hasPrefix("<style")
     }
     
-    /// Pokušaj parsirati kao Alexandria DSL → render. HTML/CSS/JS se blokira.
+    /// Pokušaj parsirati kao Swift (Alexandria format) → render. HTML/CSS/JS se blokira.
     private func tryParseAndRender(_ source: String) -> EluminatiumContent {
         let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
-        let dslKeywords = ["vstack", "hstack", "zstack", "scrollview", "list", "form", "grid", "tabview", "group", "groupbox", "section", "disclosuregroup", "text", "button", "image", "label", "link", "textfield", "securefield", "texteditor", "toggle", "slider", "stepper", "picker", "progressview", "gauge", "menu", "spacer", "divider", "color", "rectangle", "circle", "roundedrectangle", "ellipse", "capsule", "lazyvstack", "lazyhstack", "padding", "frame", "position", "positioned", "background", "foreground"]
+        let swiftViewKeywords = ["vstack", "hstack", "zstack", "scrollview", "list", "form", "grid", "tabview", "group", "groupbox", "section", "disclosuregroup", "text", "button", "image", "label", "link", "textfield", "securefield", "texteditor", "toggle", "slider", "stepper", "picker", "progressview", "gauge", "menu", "spacer", "divider", "color", "rectangle", "circle", "roundedrectangle", "ellipse", "capsule", "lazyvstack", "lazyhstack", "padding", "frame", "position", "positioned", "background", "foreground"]
         let firstWord = trimmed.prefix(100).lowercased()
-        let looksLikeDSL = dslKeywords.contains { firstWord.contains($0) }
+        let looksLikeSwift = swiftViewKeywords.contains { firstWord.contains($0) }
         
-        if looksLikeDSL {
+        if looksLikeSwift {
             do {
                 let parser = AlexandriaParser(source: trimmed)
                 let node = try parser.parse()
-                ConsoleStore.shared.log("Alexandria DSL parsed successfully")
+                ConsoleStore.shared.log("Swift (Alexandria) parsiran uspješno")
                 return .app(node)
             } catch {
                 ConsoleStore.shared.log("Parse error: \(error)")

@@ -50,7 +50,7 @@ final class EluminatiumService {
         }
     }
 
-    /// Uspostavi vezu i preuzmi UI pretraživača (Swift/DSL datoteke s backenda)
+    /// Uspostavi vezu i preuzmi UI pretraživača (Swift kod s backenda)
     func fetchSearchUI() async throws -> String {
         guard !baseURL.isEmpty else {
             log("Eluminatium: Nema postavljenog pretraživača – dodaj u postavkama", type: .error)
@@ -71,10 +71,10 @@ final class EluminatiumService {
             }
             let json = try JSONDecoder().decode(EluminatiumDSLResponse.self, from: data)
             guard let dsl = json.dsl else {
-                log("[\(EluminatiumRequestSource.connect.rawValue)] DSL nije u odgovoru: \(json.message ?? "—")", type: .error)
+                log("[\(EluminatiumRequestSource.connect.rawValue)] Swift kod nije u odgovoru: \(json.message ?? "—")", type: .error)
                 throw NSError(domain: "EluminatiumService", code: -1, userInfo: [NSLocalizedDescriptionKey: json.message ?? "Nema"])
             }
-            log("[\(EluminatiumRequestSource.connect.rawValue)] Vraćeno: DSL \(dsl.count) znakova", type: .info)
+            log("[\(EluminatiumRequestSource.connect.rawValue)] Vraćeno: Swift \(dsl.count) znakova", type: .info)
             return dsl
         case .httpError(let statusCode, _, _):
             log("[\(EluminatiumRequestSource.connect.rawValue)] HTTP greška: \(statusCode)", type: .error)
@@ -144,7 +144,7 @@ final class EluminatiumService {
         }
     }
     
-    /// Preuzmi DSL izvornik s backenda (za direktan render u browseru)
+    /// Preuzmi Swift izvornik s backenda (za render u Alexandria browseru)
     func fetchDSL(appId: String) async throws -> String {
         guard !baseURL.isEmpty else {
             throw NSError(domain: "EluminatiumService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Dodaj pretraživač u postavkama"])
@@ -153,13 +153,13 @@ final class EluminatiumService {
         guard let url = URL(string: urlString) else {
             throw NSError(domain: "EluminatiumService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Neispravan URL"])
         }
-        log("DSL: Šaljem GET \(urlString)", type: .info)
+        log("Swift: Šaljem GET \(urlString)", type: .info)
         let (data, _) = try await BrowserNetworkingService.shared.fetch(url: url)
         let json = try JSONDecoder().decode(EluminatiumDSLResponse.self, from: data)
         guard let dsl = json.dsl else {
             throw NSError(domain: "EluminatiumService", code: -1, userInfo: [NSLocalizedDescriptionKey: json.message ?? "Nema"])
         }
-        log("DSL: \(appId) – preuzeto \(dsl.count) znakova", type: .info)
+        log("Swift: \(appId) – preuzeto \(dsl.count) znakova", type: .info)
         return dsl
     }
 }
