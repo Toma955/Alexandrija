@@ -347,6 +347,11 @@ struct EluminatiumShellView: View {
     var pageListItems: [EluminatiumPageItem]? = nil
     
     @State private var installingId: String?
+    /// Kad je postavljen, bijeli okvir se raširi do rubova i unutra se prikazuje app (CodeView).
+    @State private var appInCard: InstalledApp?
+    @State private var loadedSourceInCard: String = ""
+    /// Kad korisnik tipka: naslov nestane, kvadrat se proširi prema gore, unos prema dolje.
+    @State private var searchActive = false
     private let accentColor = Color(hex: "ff5c00")
     
     var body: some View {
@@ -393,28 +398,62 @@ struct EluminatiumShellView: View {
                     )
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let app = appInCard {
+                // App u kartici – bijeli okvir raširen do rubova, unutra CodeView
+                EluminatiumExpandedAppCard(
+                    app: app,
+                    source: loadedSourceInCard,
+                    accentColor: accentColor,
+                    onBack: {
+                        appInCard = nil
+                        loadedSourceInCard = ""
+                    }
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
             } else {
-                // Naslov + tražilica (samo Swift izvornik, bez renderiranja s backenda)
+                // Početna: natpis Eluminatium + bijeli okvir; pri tipkanju naslov nestane, kvadrat se proširi prema gore, unos prema dolje
                 ZStack {
-                    VStack(spacing: 20) {
-                        Text("Pretraga aplikacija")
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(.white)
+                    VStack(spacing: 0) {
+                        if !searchActive {
+                            Text("Eluminatium")
+                                .font(.system(size: 36, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.bottom, 24)
+                        }
+                        Spacer(minLength: searchActive ? 0 : 24)
                         SearchEngineSection(
                             content: $content,
                             initialSearchQuery: $initialSearchQuery,
                             currentAddress: $currentAddress,
                             onOpenSettings: onOpenSettings,
                             onOpenAppFromSearch: onOpenAppFromSearch,
+                            onOpenAppInCard: { installed in
+                                appInCard = installed
+                                loadSourceForCard(installed)
+                            },
+                            searchActive: $searchActive,
                             shellStyle: true
                         )
                     }
                     .padding(.horizontal, 24)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .animation(.easeInOut(duration: 0.28), value: searchActive)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.easeInOut(duration: 0.3), value: appInCard?.id)
+    }
+    
+    private func loadSourceForCard(_ app: InstalledApp) {
+        Task {
+            do {
+                let s = try AppInstallService.shared.loadSource(for: app)
+                await MainActor.run { loadedSourceInCard = s }
+            } catch {
+                await MainActor.run { loadedSourceInCard = "" }
+            }
+        }
     }
     
     private func handlePageSelect(_ item: EluminatiumPageItem) {
@@ -449,6 +488,58 @@ struct EluminatiumShellView: View {
         case .file(_, let source):
             content = .code(source)
         }
+    }
+}
+
+// MARK: - Proširena kartica – app učitana unutar bijelog okvira do rubova
+struct EluminatiumExpandedAppCard: View {
+    let app: InstalledApp
+    let source: String
+    let accentColor: Color
+    var onBack: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button {
+                    onBack()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chevron.left")
+                        Text("Nazad")
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundColor(accentColor)
+                }
+                .buttonStyle(.plain)
+                Text(app.name)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.black)
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+            .background(Color.white)
+            
+            if source.isEmpty {
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .scaleEffect(1.2)
+                        .tint(accentColor)
+                    Text("Učitavam \(app.name)...")
+                        .font(.system(size: 13))
+                        .foregroundColor(.black.opacity(0.7))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.white)
+            } else {
+                CodeView(source: source, accentColor: accentColor, showCopyButton: true)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
     }
 }
 
@@ -533,20 +624,30 @@ struct SearchEngineSection: View {
     @State private var installingSuggestionId: String?
     var onOpenSettings: (() -> Void)?
     var onOpenAppFromSearch: ((InstalledApp) -> Void)?
+    /// Kad je postavljen, odabir iz prijedloga otvara app u kartici (raširen bijeli okvir), ne u cijelom ekranu.
+    var onOpenAppInCard: ((InstalledApp) -> Void)?
+    /// Kad je postavljen, ažurira se kad korisnik tipka – parent skriva naslov i proširuje kvadrat prema gore.
+    var searchActive: Binding<Bool>?
     var shellStyle: Bool = false  // zelena pozadina – svjetlija kartica
 
     private let accentColor = Color(hex: "ff5c00")
+    
+    private var hasSuggestions: Bool {
+        !suggestions.isEmpty && !searchText.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+    
+    private var isTyping: Bool {
+        !searchText.trimmingCharacters(in: .whitespaces).isEmpty
+    }
 
     var body: some View {
         VStack(spacing: 12) {
-            SearchBar(
-                searchText: $searchText,
-                accentColor: shellStyle ? Color.black : accentColor,
-                onSubmit: { performSearch() },
-                shellStyle: shellStyle
-            )
-
-            if !suggestions.isEmpty && !searchText.trimmingCharacters(in: .whitespaces).isEmpty {
+            // Kad tipkanje aktivno: spacer gore da se unos spusti, kvadrat se proširi prema gore
+            if isTyping, searchActive != nil {
+                Spacer(minLength: 0)
+            }
+            // Prijedlozi aplikacija prema gore (iznad tražilice) – klik otvara app u kartici
+            if hasSuggestions {
                 SearchSuggestionsDropdown(
                     suggestions: suggestions,
                     accentColor: shellStyle ? Color.black : accentColor,
@@ -555,16 +656,26 @@ struct SearchEngineSection: View {
                     shellStyle: shellStyle
                 )
             }
+            SearchBar(
+                searchText: $searchText,
+                accentColor: shellStyle ? Color.black : accentColor,
+                onSubmit: { performSearch() },
+                shellStyle: shellStyle
+            )
         }
         .padding(24)
-        .frame(maxWidth: 440)
+        .frame(maxWidth: hasSuggestions ? 520 : 440)
+        .frame(maxHeight: (searchActive?.wrappedValue == true) ? .infinity : nil)
         .foregroundColor(shellStyle ? .black : .white)
         .background(
             RoundedRectangle(cornerRadius: 20)
                 .fill(Color.white)
         )
+        .animation(.easeInOut(duration: 0.25), value: hasSuggestions)
+        .animation(.easeInOut(duration: 0.28), value: isTyping)
         .onChange(of: searchText) { _, newValue in
             fetchSuggestionsDebounced(for: newValue)
+            searchActive?.wrappedValue = !newValue.trimmingCharacters(in: .whitespaces).isEmpty
         }
         .onChange(of: initialSearchQuery) { _, newValue in
             guard let query = newValue?.trimmingCharacters(in: .whitespacesAndNewlines), !query.isEmpty else { return }
@@ -605,7 +716,11 @@ struct SearchEngineSection: View {
         if let existing = AppInstallService.shared.findInstalledApp(catalogId: catalogItem.id, name: catalogItem.name, zipHash: catalogItem.zipHash) {
             ConsoleStore.shared.log("Suggestion → webapp: \(catalogItem.name) (\(catalogItem.id)) – već instalirano", type: .info)
             installingSuggestionId = nil
-            onOpenAppFromSearch?(existing)
+            if let openInCard = onOpenAppInCard {
+                openInCard(existing)
+            } else {
+                onOpenAppFromSearch?(existing)
+            }
             return
         }
         ConsoleStore.shared.log("Suggestion → webapp: \(catalogItem.name) (\(catalogItem.id)) – preuzimanje…", type: .info)
@@ -616,7 +731,11 @@ struct SearchEngineSection: View {
                 await MainActor.run {
                     ConsoleStore.shared.log("Instalirano (suggestion): \(installed.name) ✓", type: .info)
                     installingSuggestionId = nil
-                    onOpenAppFromSearch?(installed)
+                    if let openInCard = onOpenAppInCard {
+                        openInCard(installed)
+                    } else {
+                        onOpenAppFromSearch?(installed)
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -841,7 +960,7 @@ struct SearchSuggestionsDropdown: View {
                         .stroke(accentColor.opacity(0.3), lineWidth: 1)
                 )
         )
-        .padding(.top, 4)
+        .padding(.bottom, 4)
     }
 }
 
