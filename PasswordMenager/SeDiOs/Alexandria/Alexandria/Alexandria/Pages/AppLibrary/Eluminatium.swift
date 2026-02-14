@@ -123,13 +123,14 @@ struct SearchTextField: NSViewRepresentable {
 
 private let eluminatiumGreen = Color(hex: "1a5f2a")
 
-// MARK: - Dinamička zelena pozadina – polarna svjetlost (aurora)
+// MARK: - Živa zelena pozadina – boje se mijenjaju (aurora)
 struct AuroraGreenBackgroundView: View {
     private let darkGreen = Color(hex: "0a1810")
     private let auroraGreen1 = Color(hex: "1a4d2e")
     private let auroraGreen2 = Color(hex: "2d6a3e")
     private let auroraGreen3 = Color(hex: "3d8b52")
     private let auroraGlow = Color(hex: "5bb87a")
+    private let auroraTeal = Color(hex: "2d8b6a")
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1/30, paused: false)) { timeline in
@@ -137,15 +138,16 @@ struct AuroraGreenBackgroundView: View {
             let p1 = CGFloat(sin(t * 0.15) * 0.5 + 0.5)
             let p2 = CGFloat(sin(t * 0.12 + 1) * 0.5 + 0.5)
             let p3 = CGFloat(sin(t * 0.18 + 2) * 0.5 + 0.5)
+            let hueShift = CGFloat(sin(t * 0.08) * 0.5 + 0.5)
 
             ZStack {
                 darkGreen
 
-                // Prva traka – lijevo, pomiče se gore-dolje
+                // Prva traka – lijevo, pomiče se i mijenja jakost
                 Ellipse()
                     .fill(
                         RadialGradient(
-                            colors: [auroraGreen2.opacity(0.5), auroraGreen1.opacity(0.2), Color.clear],
+                            colors: [auroraGreen2.opacity(0.35 + p1 * 0.25), auroraGreen1.opacity(0.15 + p2 * 0.15), Color.clear],
                             center: .center,
                             startRadius: 0,
                             endRadius: 280
@@ -155,11 +157,11 @@ struct AuroraGreenBackgroundView: View {
                     .offset(x: -200, y: 80 + p1 * 120)
                     .blur(radius: 80)
 
-                // Druga traka – desno, sporija
+                // Druga traka – desno, sporija, više svjetla
                 Ellipse()
                     .fill(
                         RadialGradient(
-                            colors: [auroraGlow.opacity(0.35), auroraGreen3.opacity(0.2), Color.clear],
+                            colors: [auroraGlow.opacity(0.3 + hueShift * 0.2), auroraTeal.opacity(0.2), auroraGreen3.opacity(0.1), Color.clear],
                             center: .center,
                             startRadius: 0,
                             endRadius: 320
@@ -169,11 +171,11 @@ struct AuroraGreenBackgroundView: View {
                     .offset(x: 220, y: -60 + p2 * 100)
                     .blur(radius: 90)
 
-                // Treća traka – sredina, najblaža
+                // Treća traka – sredina, pulsira
                 Ellipse()
                     .fill(
                         RadialGradient(
-                            colors: [auroraGreen3.opacity(0.25), auroraGreen2.opacity(0.1), Color.clear],
+                            colors: [auroraGreen3.opacity(0.2 + p3 * 0.2), auroraGreen2.opacity(0.08 + p1 * 0.12), Color.clear],
                             center: .center,
                             startRadius: 0,
                             endRadius: 250
@@ -411,7 +413,7 @@ struct EluminatiumShellView: View {
                 )
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))
             } else {
-                // Početna: natpis Eluminatium + bijeli okvir; pri tipkanju naslov nestane, kvadrat se proširi prema gore, unos prema dolje
+                // Početna: živa pozadina, naslov, bijeli okvir malo iznad dna; pri tipkanju samo visina rezultata; kad klikneš app → do kraja
                 ZStack {
                     VStack(spacing: 0) {
                         if !searchActive {
@@ -436,6 +438,7 @@ struct EluminatiumShellView: View {
                         )
                     }
                     .padding(.horizontal, 24)
+                    .padding(.bottom, 48)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .animation(.easeInOut(duration: 0.28), value: searchActive)
@@ -642,11 +645,7 @@ struct SearchEngineSection: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            // Kad tipkanje aktivno: spacer gore da se unos spusti, kvadrat se proširi prema gore
-            if isTyping, searchActive != nil {
-                Spacer(minLength: 0)
-            }
-            // Prijedlozi aplikacija prema gore (iznad tražilice) – klik otvara app u kartici
+            // Prijedlozi – visina samo koliko ima rezultata (ne cijeli ekran)
             if hasSuggestions {
                 SearchSuggestionsDropdown(
                     suggestions: suggestions,
@@ -665,14 +664,12 @@ struct SearchEngineSection: View {
         }
         .padding(24)
         .frame(maxWidth: hasSuggestions ? 520 : 440)
-        .frame(maxHeight: (searchActive?.wrappedValue == true) ? .infinity : nil)
         .foregroundColor(shellStyle ? .black : .white)
         .background(
             RoundedRectangle(cornerRadius: 20)
                 .fill(Color.white)
         )
         .animation(.easeInOut(duration: 0.25), value: hasSuggestions)
-        .animation(.easeInOut(duration: 0.28), value: isTyping)
         .onChange(of: searchText) { _, newValue in
             fetchSuggestionsDebounced(for: newValue)
             searchActive?.wrappedValue = !newValue.trimmingCharacters(in: .whitespaces).isEmpty
