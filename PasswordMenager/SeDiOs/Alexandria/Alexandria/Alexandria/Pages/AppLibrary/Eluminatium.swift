@@ -8,16 +8,15 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Rezultat pretrage (što vizualizirati)
+// MARK: - Rezultat pretrage (što prikazati)
 enum EluminatiumContent: Equatable {
-    case connecting       // uspostavlja vezu s backendom
-    case idle(serverUI: AlexandriaViewNode?)  // spojeno, renderira se pretraživač (UI s backenda)
+    case connecting
+    case idle(serverUI: AlexandriaViewNode?)  // spojeno; serverUI se ne koristi (samo Swift izvornik)
     case loading
-    case code(String)
-    case app(AlexandriaViewNode)
-    case pageList([EluminatiumPageItem])  // popis stranica prije otvaranja (makar jedna)
+    case code(String)    // Swift izvornik – prikazuje se u CodeView
+    case pageList([EluminatiumPageItem])
     case error(String)
-    case httpError(statusCode: Int, message: String?)  // interna stranica za 4xx/5xx
+    case httpError(statusCode: Int, message: String?)
 }
 
 /// Ikona aplikacije – URL s backenda ili SF Symbol
@@ -52,10 +51,10 @@ struct AppIconView: View {
     }
 }
 
-/// Jedna stranica u popisu – može biti iz pretrage (catalog) ili iz file
+/// Jedna stranica u popisu – iz pretrage (catalog) ili lokalna Swift datoteka
 enum EluminatiumPageItem: Equatable {
     case catalog(EluminatiumAppCatalogItem)
-    case file(name: String, node: AlexandriaViewNode)
+    case file(name: String, source: String)
 }
 
 // MARK: - Search TextField – Enter = submit (internal za Island)
@@ -210,7 +209,7 @@ struct EluminatiumView: View {
                         ProgressView()
                             .scaleEffect(1.5)
                             .tint(.white)
-                        Text("Uspostavljam vezu s Eluminatiumom...")
+                        Text("Uspostavljam vezu s serverom...")
                             .foregroundColor(.white.opacity(0.9))
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -248,25 +247,6 @@ struct EluminatiumView: View {
                     }
                     .background(Color.black.opacity(0.5))
                     CodeView(source: source)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case .app(let node):
-                VStack(spacing: 0) {
-                    HStack {
-                        Button {
-                            content = .idle(serverUI: serverUINode)
-                        } label: {
-                            Image(systemName: "arrow.left")
-                                .foregroundColor(Color(hex: "ff5c00"))
-                        }
-                        .buttonStyle(.plain)
-                        .padding(12)
-                        Spacer()
-                    }
-                    .background(Color.black.opacity(0.5))
-                    AlexandriaRenderer(node: node)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .padding(24)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .pageList(let items):
@@ -334,25 +314,12 @@ struct EluminatiumView: View {
         currentAddress = baseURL.isEmpty ? "" : "\(baseURL)/api/ui"
         Task {
             do {
-                let dsl = try await EluminatiumService.shared.fetchSearchUI()
-                do {
-                    let node = try AlexandriaParser(source: dsl).parse()
-                    await MainActor.run {
-                        ConsoleStore.shared.log("[Spajanje] Swift kod parsiran uspješno", type: .info)
-                        serverUINode = node
-                        content = .idle(serverUI: node)
-                        currentAddress = baseURL.isEmpty ? "" : baseURL
-                    }
-                } catch let parseError as AlexandriaParseError {
-                    await MainActor.run {
-                        ConsoleStore.shared.log("Swift greška: \(parseError.localizedDescription)", type: .error)
-                        content = .error("Swift greška: \(parseError.localizedDescription)\n\nKoristi „Lokalni mod“ ili „Dev Mode“ za detalje.")
-                    }
-                } catch {
-                    await MainActor.run {
-                        ConsoleStore.shared.log("Swift greška: \(error.localizedDescription)", type: .error)
-                        content = .error("Swift greška: \(error.localizedDescription)\n\nKoristi „Lokalni mod“ ili „Dev Mode“ za detalje.")
-                    }
+                _ = try await EluminatiumService.shared.fetchSearchUI()
+                await MainActor.run {
+                    ConsoleStore.shared.log("[Spajanje] Spojeno na server", type: .info)
+                    serverUINode = nil
+                    content = .idle(serverUI: nil)
+                    currentAddress = baseURL.isEmpty ? "" : baseURL
                 }
             } catch let httpErr as HTTPStatusError {
                 await MainActor.run {
@@ -362,7 +329,7 @@ struct EluminatiumView: View {
             } catch {
                 await MainActor.run {
                     ConsoleStore.shared.log("Veza neuspjela: \(error.localizedDescription)", type: .error)
-                    content = .error("Nema veze s Eluminatiumom: \(error.localizedDescription)")
+                    content = .error("Nema veze s serverom: \(error.localizedDescription)")
                 }
             }
         }
@@ -426,29 +393,11 @@ struct EluminatiumShellView: View {
                     )
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let node = serverUINode {
-                // ZStack: sadržaj s backenda u pozadini, unos (bijela kartica) točno u sredini ekrana
-                ZStack {
-                    AlexandriaRenderer(node: node)
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 24)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    SearchEngineSection(
-                        content: $content,
-                        initialSearchQuery: $initialSearchQuery,
-                        currentAddress: $currentAddress,
-                        onOpenSettings: onOpenSettings,
-                        onOpenAppFromSearch: onOpenAppFromSearch,
-                        shellStyle: true
-                    )
-                    .padding(.horizontal, 24)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                // Nema sadržaja s backenda – naslov + unos centrirani u sredini
+                // Naslov + tražilica (samo Swift izvornik, bez renderiranja s backenda)
                 ZStack {
                     VStack(spacing: 20) {
-                        Text("Eluminatium")
+                        Text("Pretraga aplikacija")
                             .font(.system(size: 28, weight: .bold))
                             .foregroundColor(.white)
                         SearchEngineSection(
@@ -472,11 +421,20 @@ struct EluminatiumShellView: View {
         switch item {
         case .catalog(let catalogItem):
             installingId = catalogItem.id
+            if let existing = AppInstallService.shared.findInstalledApp(catalogId: catalogItem.id, name: catalogItem.name, zipHash: catalogItem.zipHash) {
+                ConsoleStore.shared.log("Otvaranje webapp: \(catalogItem.name) (\(catalogItem.id)) – već instalirano (hash OK)", type: .info)
+                installingId = nil
+                content = .idle(serverUI: serverUINode)
+                onOpenAppFromSearch?(existing)
+                return
+            }
+            ConsoleStore.shared.log("Otvaranje webapp: \(catalogItem.name) (\(catalogItem.id)) – preuzimanje…", type: .info)
             Task {
                 do {
                     let zipData = try await EluminatiumService.shared.downloadZip(appId: catalogItem.id)
-                    let installed = try AppInstallService.shared.install(from: zipData)
+                    let installed = try AppInstallService.shared.install(from: zipData, suggestedName: catalogItem.name, catalogId: catalogItem.id, zipHash: catalogItem.zipHash)
                     await MainActor.run {
+                        ConsoleStore.shared.log("Instalirano i otvoreno: \(installed.name) (\(catalogItem.id)) ✓", type: .info)
                         installingId = nil
                         content = .idle(serverUI: serverUINode)
                         onOpenAppFromSearch?(installed)
@@ -488,8 +446,8 @@ struct EluminatiumShellView: View {
                     }
                 }
             }
-        case .file(_, let node):
-            content = .app(node)
+        case .file(_, let source):
+            content = .code(source)
         }
     }
 }
@@ -644,11 +602,19 @@ struct SearchEngineSection: View {
     private func selectSuggestion(_ catalogItem: EluminatiumAppCatalogItem) {
         suggestions = []
         installingSuggestionId = catalogItem.id
+        if let existing = AppInstallService.shared.findInstalledApp(catalogId: catalogItem.id, name: catalogItem.name, zipHash: catalogItem.zipHash) {
+            ConsoleStore.shared.log("Suggestion → webapp: \(catalogItem.name) (\(catalogItem.id)) – već instalirano", type: .info)
+            installingSuggestionId = nil
+            onOpenAppFromSearch?(existing)
+            return
+        }
+        ConsoleStore.shared.log("Suggestion → webapp: \(catalogItem.name) (\(catalogItem.id)) – preuzimanje…", type: .info)
         Task {
             do {
                 let zipData = try await EluminatiumService.shared.downloadZip(appId: catalogItem.id)
-                let installed = try AppInstallService.shared.install(from: zipData)
+                let installed = try AppInstallService.shared.install(from: zipData, suggestedName: catalogItem.name, catalogId: catalogItem.id, zipHash: catalogItem.zipHash)
                 await MainActor.run {
+                    ConsoleStore.shared.log("Instalirano (suggestion): \(installed.name) ✓", type: .info)
                     installingSuggestionId = nil
                     onOpenAppFromSearch?(installed)
                 }
@@ -688,9 +654,11 @@ struct SearchEngineSection: View {
                 await MainActor.run {
                     if apps.isEmpty {
                         content = .error("Nema aplikacije „\(searchQuery)“ u katalogu.")
+                        ConsoleStore.shared.log("Pretraga: \"\(searchQuery)\" → 0 rezultata", type: .info)
                     } else {
                         content = .pageList(apps.map { .catalog($0) })
                         currentAddress = searchURL
+                        ConsoleStore.shared.log("Pretraga: \"\(searchQuery)\" → \(apps.count) rezultata (prikaz liste)", type: .info)
                     }
                 }
             } catch {
@@ -702,24 +670,9 @@ struct SearchEngineSection: View {
         }
     }
 
-    private func tryParseAndRender(_ source: String) -> EluminatiumContent {
-        let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
-        let swiftViewKeywords = ["vstack", "hstack", "zstack", "scrollview", "list", "form", "grid", "tabview", "group", "groupbox", "section", "disclosuregroup", "text", "button", "image", "label", "link", "textfield", "securefield", "texteditor", "toggle", "slider", "stepper", "picker", "progressview", "gauge", "menu", "spacer", "divider", "color", "rectangle", "circle", "roundedrectangle", "ellipse", "capsule", "lazyvstack", "lazyhstack", "padding", "frame", "position", "positioned", "background", "foreground"]
-        let firstWord = trimmed.prefix(100).lowercased()
-        let looksLikeSwift = swiftViewKeywords.contains { firstWord.contains($0) }
-        
-        if looksLikeSwift {
-            do {
-                let parser = AlexandriaParser(source: trimmed)
-                let node = try parser.parse()
-                ConsoleStore.shared.log("Swift (Alexandria) parsiran uspješno")
-                return .app(node)
-            } catch {
-                ConsoleStore.shared.log("Parse error: \(error)")
-                return .code(source)
-            }
-        }
-        return .code(source)
+    /// Prikazuje samo Swift izvornik (bez parsiranja / renderiranja).
+    private func showSwiftSource(_ source: String) -> EluminatiumContent {
+        .code(source)
     }
 }
 
@@ -807,11 +760,19 @@ struct EluminatiumSearchResultsView: View {
     private func installAndOpen(_ catalogItem: EluminatiumAppCatalogItem) {
         installingId = catalogItem.id
         errorMessage = nil
+        if let existing = AppInstallService.shared.findInstalledApp(catalogId: catalogItem.id, name: catalogItem.name, zipHash: catalogItem.zipHash) {
+            ConsoleStore.shared.log("Rezultati → webapp: \(catalogItem.name) (\(catalogItem.id)) – već instalirano (hash OK)", type: .info)
+            installingId = nil
+            onOpenApp(existing)
+            return
+        }
+        ConsoleStore.shared.log("Rezultati → webapp: \(catalogItem.name) (\(catalogItem.id)) – preuzimanje…", type: .info)
         Task {
             do {
                 let zipData = try await EluminatiumService.shared.downloadZip(appId: catalogItem.id)
-                let installed = try AppInstallService.shared.install(from: zipData)
+                let installed = try AppInstallService.shared.install(from: zipData, suggestedName: catalogItem.name, catalogId: catalogItem.id, zipHash: catalogItem.zipHash)
                 await MainActor.run {
+                    ConsoleStore.shared.log("Instalirano i otvoreno: \(installed.name) (\(catalogItem.id)) ✓", type: .info)
                     installingId = nil
                     onOpenApp(installed)
                 }

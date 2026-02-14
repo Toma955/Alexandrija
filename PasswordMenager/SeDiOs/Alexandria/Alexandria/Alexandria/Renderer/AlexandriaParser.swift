@@ -34,6 +34,7 @@ final class AlexandriaParser {
     
     func parse() throws -> AlexandriaViewNode {
         depth = 0
+        while index < input.endIndex && (input[index] == "\u{FEFF}" || input[index].isWhitespace) { advance() }
         skipWhitespaceAndNewlines()
         let node = try parseView()
         skipWhitespaceAndNewlines()
@@ -205,9 +206,9 @@ final class AlexandriaParser {
         case "foreground":
             return try parseForeground()
         default:
-            let expected = "VStack, HStack, ZStack, ScrollView, Text, Button, Image, Spacer, Divider, Color, Rectangle, Circle"
+            let expected = "VStack, HStack, ZStack, ScrollView, Text, Button, Image, Spacer, Divider, Color, Rectangle, Circle, Padding, Frame, Background, Foreground, Link, Label, List, …"
             if word.isEmpty {
-                throw AlexandriaParseError.expected(expected)
+                throw AlexandriaParseError.expected("view (\(expected)) – možda dodatna } ili pogrešna struktura")
             }
             throw AlexandriaParseError.expected("\(expected) – pronađeno: „\(word)“")
         }
@@ -313,6 +314,7 @@ final class AlexandriaParser {
     }
     
     private func parseScrollView() throws -> AlexandriaViewNode {
+        skipOptionalParens()
         skipWhitespaceAndNewlines()
         guard current == "{" else { throw AlexandriaParseError.expected("{") }
         advance()
@@ -474,7 +476,16 @@ final class AlexandriaParser {
         let title = try parseString()
         skipWhitespaceAndNewlines()
         var sysImg = "doc"
-        if current == "," { advance(); skipWhitespaceAndNewlines(); sysImg = try parseString() }
+        if current == "," {
+            advance()
+            skipWhitespaceAndNewlines()
+            if index < input.endIndex && input[index].isLetter {
+                parseIdentifier()
+                skipWhitespaceAndNewlines()
+                if current == ":" { advance(); skipWhitespaceAndNewlines() }
+            }
+            sysImg = try parseString()
+        }
         skipWhitespaceAndNewlines()
         while index < input.endIndex, current != ")" { advance() }
         if current == ")" { advance() }

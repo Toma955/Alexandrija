@@ -15,6 +15,10 @@ struct InstalledApp: Identifiable, Equatable {
     /// Relativna staza do glavne .swift datoteke (npr. index.swift)
     let entryPoint: String
     let installedAt: Date
+    /// ID u katalogu servera (npr. "youtube") – za usporedbu hasha
+    let catalogId: String?
+    /// Hash zipa pri instalaciji – ako se podudara s serverom, ne treba ponovno preuzimanje
+    let zipHash: String?
     
     /// Pun URL do entry point datoteke
     var entryURL: URL {

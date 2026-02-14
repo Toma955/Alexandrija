@@ -74,7 +74,7 @@ struct ConsoleView: View {
     
     private func formatTime(_ date: Date) -> String {
         let f = DateFormatter()
-        f.dateFormat = "HH:mm:ss"
+        f.dateFormat = "dd.MM. HH:mm:ss"
         return f.string(from: date)
     }
     

@@ -12,6 +12,7 @@ struct DevModeView: View {
     @Binding var currentAddress: String
     @State private var localIP: String = "—"
     @State private var showConsole = false
+    @State private var selectedDownloadRecord: DownloadRecord?
     @ObservedObject private var downloadTracker = DownloadTracker.shared
     
     private let accentColor = Color.white
@@ -25,13 +26,23 @@ struct DevModeView: View {
     
     private var mainContent: some View {
         HSplitView {
-            // Lijevo: Eluminatium/search sadržaj – učitava se kao u Search tabu
-            EluminatiumView(
-                initialSearchQuery: .constant(nil),
-                currentAddress: $currentAddress,
-                onOpenAppFromSearch: nil,
-                onSwitchToDevMode: nil
-            )
+            // Lijevo: radni prostor – search ili prikaz odabrane preuzete app (iznad konzole)
+            Group {
+                if let record = selectedDownloadRecord {
+                    DevModeAppPreviewView(
+                        record: record,
+                        accentColor: accentColor,
+                        onClose: { selectedDownloadRecord = nil }
+                    )
+                } else {
+                    EluminatiumView(
+                        initialSearchQuery: .constant(nil),
+                        currentAddress: $currentAddress,
+                        onOpenAppFromSearch: nil,
+                        onSwitchToDevMode: nil
+                    )
+                }
+            }
             .frame(minWidth: 400)
             .clipShape(RoundedRectangle(cornerRadius: 16))
             
@@ -70,19 +81,26 @@ struct DevModeView: View {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 4) {
                             ForEach(downloadTracker.records) { r in
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(r.filename)
-                                        .font(.system(size: 10, design: .monospaced))
-                                        .lineLimit(1)
-                                        .truncationMode(.middle)
-                                    Text(formatDate(r.date))
-                                        .font(.system(size: 9))
-                                        .foregroundColor(.white.opacity(0.5))
+                                Button {
+                                    if r.filename.lowercased().hasSuffix(".zip") {
+                                        selectedDownloadRecord = r
+                                    }
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(r.filename)
+                                            .font(.system(size: 10, design: .monospaced))
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+                                        Text(formatDate(r.date))
+                                            .font(.system(size: 9))
+                                            .foregroundColor(.white.opacity(0.5))
+                                    }
+                                    .padding(6)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(r.filename.lowercased().hasSuffix(".zip") ? Color.white.opacity(0.1) : Color.white.opacity(0.06))
+                                    .cornerRadius(4)
                                 }
-                                .padding(6)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.white.opacity(0.06))
-                                .cornerRadius(4)
+                                .buttonStyle(.plain)
                             }
                             if downloadTracker.records.isEmpty {
                                 Text("Nema preuzetih datoteka")
@@ -200,6 +218,119 @@ private struct InfoRow: View {
                 .font(.system(size: 10, design: .monospaced))
                 .lineLimit(1)
                 .truncationMode(.middle)
+        }
+    }
+}
+
+// MARK: - Prikaz preuzete app u radnom prostoru (iznad konzole) – Kod (linija po liniju) ili Pregled (gotov proizvod)
+private struct DevModeAppPreviewView: View {
+    let record: DownloadRecord
+    let accentColor: Color
+    var onClose: () -> Void
+    
+    @State private var state: PreviewState = .loading
+    @State private var loadedSource: String = ""
+    
+    private enum PreviewState {
+        case loading
+        case ready   // Swift izvornik učitan – prikazuje se samo kod
+        case error(String)
+    }
+    
+    private var appId: String {
+        (record.filename as NSString).deletingPathExtension
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button {
+                    onClose()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chevron.left")
+                        Text("Nazad")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundColor(accentColor)
+                }
+                .buttonStyle(.plain)
+                Text(record.filename)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.8))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer()
+                if !loadedSource.isEmpty {
+                    Text("Swift izvornik")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.white.opacity(0.6))
+                }
+            }
+            .padding(12)
+            .background(Color.black.opacity(0.5))
+            
+            Group {
+                switch state {
+                case .loading:
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                            .tint(accentColor)
+                        Text("Učitavam \(appId)...")
+                            .font(.system(size: 13))
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                case .ready:
+                    CodeView(source: loadedSource)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                case .error(let message):
+                    if !loadedSource.isEmpty {
+                        CodeView(source: loadedSource)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        VStack(spacing: 16) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.system(size: 32))
+                                .foregroundColor(.orange)
+                            Text(message)
+                                .font(.system(size: 12))
+                                .foregroundColor(.white.opacity(0.8))
+                                .multilineTextAlignment(.center)
+                            Button("Nazad") { onClose() }
+                                .foregroundColor(accentColor)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task(id: record.id) {
+            await loadAndShow()
+        }
+    }
+    
+    private func loadAndShow() async {
+        state = .loading
+        loadedSource = ""
+        await MainActor.run {
+            ConsoleStore.shared.log("Dev Mode: učitavam Swift izvornik: \(appId) (iz Preuzete datoteke)", type: .info)
+        }
+        do {
+            let source = try await EluminatiumService.shared.fetchSource(appId: appId)
+            await MainActor.run {
+                loadedSource = source
+                ConsoleStore.shared.log("Dev Mode: Swift izvornik \(appId) učitan ✓", type: .info)
+                state = .ready
+            }
+        } catch {
+            await MainActor.run {
+                ConsoleStore.shared.log("Dev Mode: \(appId) – greška: \(error.localizedDescription)", type: .error)
+                state = .error(error.localizedDescription)
+            }
         }
     }
 }

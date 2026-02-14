@@ -17,13 +17,15 @@ enum EluminatiumRequestSource: String {
     case connect = "Spajanje"
 }
 
-/// Stavka iz Eluminatium API-ja
+/// Stavka iz Eluminatium API-ja (name, description, icon, zipHash za preskakanje preuzimanja)
 struct EluminatiumAppCatalogItem: Codable, Identifiable, Equatable {
     let id: String
     let name: String
     let description: String?
     let zipFile: String
     let iconUrl: String?
+    /// SHA-256 hash zipa – ako lokalna app ima isti naziv i hash, ne preuzimaj ponovo
+    let zipHash: String?
 }
 
 struct EluminatiumSearchResponse: Codable {
@@ -53,12 +55,12 @@ final class EluminatiumService {
     /// Uspostavi vezu i preuzmi UI pretraživača (Swift kod s backenda)
     func fetchSearchUI() async throws -> String {
         guard !baseURL.isEmpty else {
-            log("Eluminatium: Nema postavljenog pretraživača – dodaj u postavkama", type: .error)
-            throw NSError(domain: "EluminatiumService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Dodaj pretraživač u postavkama"])
+            log("Nema postavljenog servera – dodaj u postavkama", type: .error)
+            throw NSError(domain: "EluminatiumService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Dodaj server u postavkama"])
         }
         let urlString = "\(baseURL)/api/ui"
         guard let url = URL(string: urlString) else {
-            log("Eluminatium: Neispravan URL: \(urlString)", type: .error)
+            log("Neispravan URL: \(urlString)", type: .error)
             throw NSError(domain: "EluminatiumService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Neispravan URL"])
         }
         log("[\(EluminatiumRequestSource.connect.rawValue)] Šaljem: GET \(urlString)", type: .info)
@@ -67,7 +69,7 @@ final class EluminatiumService {
         case .success(let data, let http):
             log("[\(EluminatiumRequestSource.connect.rawValue)] Odgovor: \(http.statusCode), veličina \(data.count) B", type: .info)
             if http.statusCode == 200 {
-                log("[\(EluminatiumRequestSource.connect.rawValue)] Eluminatium pokrenut ✓", type: .info)
+                log("[\(EluminatiumRequestSource.connect.rawValue)] Server pokrenut ✓", type: .info)
             }
             let json = try JSONDecoder().decode(EluminatiumDSLResponse.self, from: data)
             guard let dsl = json.dsl else {
@@ -75,12 +77,13 @@ final class EluminatiumService {
                 throw NSError(domain: "EluminatiumService", code: -1, userInfo: [NSLocalizedDescriptionKey: json.message ?? "Nema"])
             }
             log("[\(EluminatiumRequestSource.connect.rawValue)] Vraćeno: Swift \(dsl.count) znakova", type: .info)
+            log("Spojeno na server ✓ \(baseURL)", type: .info)
             return dsl
         case .httpError(let statusCode, _, _):
             log("[\(EluminatiumRequestSource.connect.rawValue)] HTTP greška: \(statusCode)", type: .error)
-            throw HTTPStatusError(statusCode: statusCode, message: "Eluminatium vraća \(statusCode)")
+            throw HTTPStatusError(statusCode: statusCode, message: "Server vraća \(statusCode)")
         case .transportError(let error):
-            log("[\(EluminatiumRequestSource.connect.rawValue)] Eluminatium nije dostupan: \(error.localizedDescription)", type: .error)
+            log("[\(EluminatiumRequestSource.connect.rawValue)] Server nije dostupan: \(error.localizedDescription)", type: .error)
             throw error
         }
     }
@@ -88,8 +91,8 @@ final class EluminatiumService {
     /// Pretraži aplikacije
     func search(query: String, source: EluminatiumRequestSource = .searchBar) async throws -> [EluminatiumAppCatalogItem] {
         guard !baseURL.isEmpty else {
-            log("[\(source.rawValue)] Nema postavljenog pretraživača", type: .error)
-            throw NSError(domain: "EluminatiumService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Dodaj pretraživač u postavkama"])
+            log("[\(source.rawValue)] Nema postavljenog servera", type: .error)
+            throw NSError(domain: "EluminatiumService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Dodaj server u postavkama"])
         }
         var urlString = "\(baseURL)/api/search"
         if !query.isEmpty {
@@ -110,6 +113,7 @@ final class EluminatiumService {
             }
             let searchResponse = try JSONDecoder().decode(EluminatiumSearchResponse.self, from: data)
             let apps = searchResponse.apps
+            log("[\(source.rawValue)] Tražio: \"\(query)\" → \(apps.count) rezultata", type: .info)
             log("[\(source.rawValue)] Vraćeno: \(apps.count) appova" + (apps.isEmpty ? " (prazno)" : " – \(apps.prefix(3).map(\.name).joined(separator: ", "))\(apps.count > 3 ? "…" : "")"), type: .info)
             return apps
         } catch {
@@ -121,18 +125,20 @@ final class EluminatiumService {
     /// Preuzmi zip aplikacije
     func downloadZip(appId: String) async throws -> Data {
         guard !baseURL.isEmpty else {
-            log("Download: Nema postavljenog pretraživača", type: .error)
-            throw NSError(domain: "EluminatiumService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Dodaj pretraživač u postavkama"])
+            log("Download: Nema postavljenog servera", type: .error)
+            throw NSError(domain: "EluminatiumService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Dodaj server u postavkama"])
         }
         let urlString = "\(baseURL)/api/apps/\(appId)/download"
         guard let url = URL(string: urlString) else {
             throw NSError(domain: "EluminatiumService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Neispravan URL"])
         }
+        log("Preuzimanje webapp: \(appId)", type: .info)
         log("Download: Šaljem GET \(urlString)", type: .info)
         do {
             let (data, response) = try await BrowserNetworkingService.shared.fetch(url: url)
             if let http = response as? HTTPURLResponse {
                 log("Download: \(appId) – odgovor \(http.statusCode), preuzeto \(data.count) B", type: .info)
+                log("Preuzeto: \(appId) (\(data.count) B) ✓", type: .info)
             }
             await MainActor.run {
                 DownloadTracker.shared.add(url: url.absoluteString, filename: "\(appId).zip", sizeBytes: Int64(data.count))
@@ -144,23 +150,23 @@ final class EluminatiumService {
         }
     }
     
-    /// Preuzmi Swift izvornik s backenda (za Alexandria app browser)
-    func fetchDSL(appId: String) async throws -> String {
+    /// Preuzmi Swift izvornik (.swift) s backenda – samo izvornik, bez parsiranja.
+    func fetchSource(appId: String) async throws -> String {
         guard !baseURL.isEmpty else {
-            throw NSError(domain: "EluminatiumService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Dodaj pretraživač u postavkama"])
+            throw NSError(domain: "EluminatiumService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Dodaj server u postavkama"])
         }
         let urlString = "\(baseURL)/api/apps/\(appId)/dsl"
         guard let url = URL(string: urlString) else {
             throw NSError(domain: "EluminatiumService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Neispravan URL"])
         }
-        log("Swift: Šaljem GET \(urlString)", type: .info)
+        log("Swift: GET \(urlString)", type: .info)
         let (data, _) = try await BrowserNetworkingService.shared.fetch(url: url)
         let json = try JSONDecoder().decode(EluminatiumDSLResponse.self, from: data)
-        guard let dsl = json.dsl else {
+        guard let source = json.dsl else {
             throw NSError(domain: "EluminatiumService", code: -1, userInfo: [NSLocalizedDescriptionKey: json.message ?? "Nema"])
         }
-        log("Swift: \(appId) – preuzeto \(dsl.count) znakova", type: .info)
-        return dsl
+        log("Swift: \(appId) – preuzeto \(source.count) znakova", type: .info)
+        return source
     }
 }
 

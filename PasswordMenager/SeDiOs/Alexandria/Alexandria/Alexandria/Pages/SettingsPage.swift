@@ -10,12 +10,12 @@ import SwiftUI
 // MARK: - Kategorije postavki
 enum SettingsCategory: String, CaseIterable {
     case general = "Općenito"
-    case searchEngines = "Pretraživači"
+    case searchEngines = "Pretraga aplikacija"
     case appearance = "Izgled"
     case network = "Mreža"
     case privacy = "Privatnost"
     case security = "Sigurnost"
-    case about = "O pregledniku"
+    case about = "O aplikaciji"
     
     var icon: String {
         switch self {
@@ -233,11 +233,51 @@ private struct GeneralSettingsSection: View {
                     .pickerStyle(.menu)
                 }
             }
+            
+            InstalledAppsSettingsCard(accentColor: accentColor)
         }
     }
 }
 
-// MARK: - Pretraživači
+// MARK: - Instalirane aplikacije – brisanje svih
+private struct InstalledAppsSettingsCard: View {
+    @ObservedObject private var installService = AppInstallService.shared
+    let accentColor: Color
+    @State private var showConfirmDeleteAll = false
+    
+    var body: some View {
+        SettingsCard(title: "Instalirane aplikacije") {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("\(installService.installedApps.count) aplikacija u biblioteci.")
+                    .font(.system(size: 13))
+                    .foregroundColor(.white.opacity(0.7))
+                if !installService.installedApps.isEmpty {
+                    Button {
+                        showConfirmDeleteAll = true
+                    } label: {
+                        Text("Obriši sve")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Capsule().fill(Color.red.opacity(0.9)))
+                    }
+                    .buttonStyle(.plain)
+                    .confirmationDialog("Obrisati sve instalirane aplikacije?", isPresented: $showConfirmDeleteAll, titleVisibility: .visible) {
+                        Button("Obriši sve", role: .destructive) {
+                            installService.uninstallAll()
+                        }
+                        Button("Odustani", role: .cancel) { }
+                    } message: {
+                        Text("Ne može se poništiti. Folderi aplikacija bit će uklonjeni.")
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Server za pretragu aplikacija (bilo koja webapp s podržanim API-jem)
 private struct SearchEnginesSettingsSection: View {
     @ObservedObject private var engineManager = SearchEngineManager.shared
     @State private var showAddEngine = false
@@ -247,18 +287,18 @@ private struct SearchEnginesSettingsSection: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text("Pretraživači")
+            Text("Pretraga aplikacija")
                 .font(.title.bold())
                 .foregroundColor(accentColor)
             
-            SettingsCard(title: "Odaberi pretraživač") {
+            SettingsCard(title: "Server kataloga") {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Alexandria se spaja na odabrani pretraživač za pretragu aplikacija.")
+                    Text("Dodaj URL bilo koje webapp koja servira katalog aplikacija (isti API). Alexandria se spaja na odabrani server.")
                         .font(.system(size: 13))
                         .foregroundColor(.white.opacity(0.7))
                     
                     if engineManager.engines.isEmpty {
-                        Text("Nema pretraživača. Dodaj prvi ispod.")
+                        Text("Nema dodanog servera. Dodaj ispod.")
                             .font(.system(size: 13))
                             .foregroundColor(.white.opacity(0.5))
                             .padding(.vertical, 8)
@@ -308,7 +348,7 @@ private struct SearchEnginesSettingsSection: View {
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "plus.circle.fill")
-                            Text("Dodaj pretraživač")
+                            Text("Dodaj server")
                                 .font(.system(size: 13, weight: .medium))
                         }
                         .foregroundColor(accentColor)
@@ -334,7 +374,7 @@ private struct SearchEnginesSettingsSection: View {
     }
 }
 
-// MARK: - Sheet za dodavanje pretraživača
+// MARK: - Sheet za dodavanje servera kataloga
 private struct AddSearchEngineSheet: View {
     @Binding var name: String
     @Binding var url: String
@@ -344,7 +384,7 @@ private struct AddSearchEngineSheet: View {
     
     var body: some View {
         VStack(spacing: 24) {
-            Text("Dodaj pretraživač")
+            Text("Dodaj server")
                 .font(.title2.bold())
                 .foregroundColor(accentColor)
             
@@ -352,7 +392,7 @@ private struct AddSearchEngineSheet: View {
                 Text("Naziv")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.white.opacity(0.8))
-                TextField("npr. Eluminatium", text: $name)
+                TextField("npr. Moj katalog", text: $name)
                     .textFieldStyle(.plain)
                     .font(.system(size: 14))
                     .foregroundColor(.white)
@@ -722,7 +762,7 @@ private struct AboutSettingsSection: View {
                     Text("Alexandria 1.0")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
-                    Text("Swift app browser – brušeno staklo, Alexandria Swift, Eluminatium.")
+                    Text("Swift app browser – brušeno staklo, Alexandria Swift.")
                         .font(.system(size: 13))
                         .foregroundColor(.white.opacity(0.7))
                 }

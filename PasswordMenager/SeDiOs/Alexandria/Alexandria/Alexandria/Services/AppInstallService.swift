@@ -34,8 +34,9 @@ final class AppInstallService: ObservableObject {
     
     // MARK: - Instalacija
     
-    /// Instalira aplikaciju iz .zip datoteke – raspakira u folder i dodaje na listu
-    func install(from zipURL: URL) throws -> InstalledApp {
+    /// Instalira aplikaciju iz .zip datoteke – raspakira u folder i dodaje na listu.
+    /// catalogId i zipHash: za HasTable – ako server kasnije pošalje isti hash, preskoči preuzimanje.
+    func install(from zipURL: URL, suggestedName: String? = nil, catalogId: String? = nil, zipHash: String? = nil) throws -> InstalledApp {
         guard zipURL.pathExtension.lowercased() == "zip" else {
             throw AppInstallError.notZip
         }
@@ -44,7 +45,8 @@ final class AppInstallService: ObservableObject {
         }
         
         let appId = UUID()
-        let appFolderName = zipURL.deletingPathExtension().lastPathComponent + "-" + appId.uuidString.prefix(8)
+        let fileBaseName = zipURL.deletingPathExtension().lastPathComponent
+        let appFolderName = fileBaseName + "-" + appId.uuidString.prefix(8)
         let destFolder = applicationsFolderURL.appendingPathComponent(appFolderName)
         
         if fileManager.fileExists(atPath: destFolder.path) {
@@ -70,13 +72,23 @@ final class AppInstallService: ObservableObject {
             throw AppInstallError.noEntryPoint
         }
         
-        let appName = zipURL.deletingPathExtension().lastPathComponent
+        // Ime: suggestedName (npr. iz kataloga) ili ime datoteke; ako je datoteka UUID.zip, ne koristi UUID kao ime
+        let appName: String
+        if let suggested = suggestedName, !suggested.trimmingCharacters(in: .whitespaces).isEmpty {
+            appName = suggested.trimmingCharacters(in: .whitespaces)
+        } else if UUID(uuidString: fileBaseName) != nil {
+            appName = "App"
+        } else {
+            appName = fileBaseName
+        }
         let app = InstalledApp(
             id: appId,
             name: appName,
             folderURL: destFolder,
             entryPoint: entryPoint,
-            installedAt: Date()
+            installedAt: Date(),
+            catalogId: catalogId,
+            zipHash: zipHash
         )
         
         installedApps.append(app)
@@ -84,12 +96,12 @@ final class AppInstallService: ObservableObject {
         return app
     }
     
-    /// Instalira iz Data (npr. preuzeto s mreže)
-    func install(from zipData: Data, suggestedName: String = "App") throws -> InstalledApp {
+    /// Instalira iz Data (npr. preuzeto s mreže). suggestedName, catalogId i zipHash za HasTable logiku.
+    func install(from zipData: Data, suggestedName: String? = nil, catalogId: String? = nil, zipHash: String? = nil) throws -> InstalledApp {
         let tempZip = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".zip")
         try zipData.write(to: tempZip)
         defer { try? fileManager.removeItem(at: tempZip) }
-        return try install(from: tempZip)
+        return try install(from: tempZip, suggestedName: suggestedName, catalogId: catalogId, zipHash: zipHash)
     }
     
     /// Instalira iz URL-a (npr. fileImporter) – kopira u temp radi sandbox pristupa
@@ -101,7 +113,16 @@ final class AppInstallService: ObservableObject {
         let tempZip = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".zip")
         try fileManager.copyItem(at: url, to: tempZip)
         defer { try? fileManager.removeItem(at: tempZip) }
-        return try install(from: tempZip)
+        return try install(from: tempZip, suggestedName: nil, catalogId: nil, zipHash: nil)
+    }
+    
+    /// Ako postoji instalirana aplikacija s istim catalogId i zipHash (i nazivom), ne treba je ponovo preuzimati.
+    /// Vraća nil ako nema hasha od servera (uvijek preuzimi) ili nema odgovarajuće instalirane app.
+    func findInstalledApp(catalogId: String, name: String, zipHash: String?) -> InstalledApp? {
+        guard let hash = zipHash, !hash.isEmpty else { return nil }
+        return installedApps.first { app in
+            app.catalogId == catalogId && app.name == name && app.zipHash == hash
+        }
     }
     
     // MARK: - Deinstalacija
@@ -112,10 +133,20 @@ final class AppInstallService: ObservableObject {
         saveInstalledApps()
     }
     
+    /// Briše sve instalirane aplikacije (foldere i listu).
+    func uninstallAll() {
+        for app in installedApps {
+            try? fileManager.removeItem(at: app.folderURL)
+        }
+        installedApps = []
+        let indexURL = applicationsFolderURL.appendingPathComponent("installed.json")
+        try? fileManager.removeItem(at: indexURL)
+    }
+    
 // MARK: - Učitavanje Swift sadržaja
 
-    /// Učitava Swift izvorni kod iz entry point datoteke
-    func loadDSLSource(for app: InstalledApp) throws -> String {
+    /// Učitava Swift izvornik (.swift) iz entry point datoteke
+    func loadSource(for app: InstalledApp) throws -> String {
         let data = try Data(contentsOf: app.entryURL)
         guard let str = String(data: data, encoding: .utf8) else {
             throw AppInstallError.invalidEncoding
@@ -170,7 +201,9 @@ final class AppInstallService: ObservableObject {
                     name: url.lastPathComponent,
                     folderURL: url,
                     entryPoint: entry,
-                    installedAt: Date()
+                    installedAt: Date(),
+                    catalogId: nil,
+                    zipHash: nil
                 )
                 apps.append(app)
             }
@@ -194,6 +227,8 @@ private struct InstalledAppCodable: Codable {
     let folderPath: String
     let entryPoint: String
     let installedAt: Date
+    let catalogId: String?
+    let zipHash: String?
     
     init(from app: InstalledApp) {
         id = app.id
@@ -201,6 +236,8 @@ private struct InstalledAppCodable: Codable {
         folderPath = app.folderURL.path
         entryPoint = app.entryPoint
         installedAt = app.installedAt
+        catalogId = app.catalogId
+        zipHash = app.zipHash
     }
     
     func toInstalledApp(fileManager: FileManager) -> InstalledApp? {
@@ -209,7 +246,7 @@ private struct InstalledAppCodable: Codable {
               fileManager.fileExists(atPath: url.appendingPathComponent(entryPoint).path) else {
             return nil
         }
-        return InstalledApp(id: id, name: name, folderURL: url, entryPoint: entryPoint, installedAt: installedAt)
+        return InstalledApp(id: id, name: name, folderURL: url, entryPoint: entryPoint, installedAt: installedAt, catalogId: catalogId, zipHash: zipHash)
     }
 }
 

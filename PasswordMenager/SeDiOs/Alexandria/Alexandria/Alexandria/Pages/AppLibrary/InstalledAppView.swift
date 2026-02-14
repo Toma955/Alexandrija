@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-/// Prikazuje instaliranu aplikaciju – učitava Swift kod i renderira
+/// Prikazuje instaliranu aplikaciju – učitava Swift izvornik i prikazuje ga (samo kod, bez renderiranja).
 struct InstalledAppView: View {
     let app: InstalledApp
     @Binding var currentAddress: String
@@ -20,7 +20,7 @@ struct InstalledAppView: View {
     
     enum ViewState {
         case loading
-        case app(AlexandriaViewNode)
+        case source(String)
         case error(String)
     }
     
@@ -36,7 +36,7 @@ struct InstalledAppView: View {
                         .foregroundColor(.white.opacity(0.8))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case .app(let node):
+            case .source(let source):
                 VStack(spacing: 0) {
                     HStack {
                         Button {
@@ -53,9 +53,8 @@ struct InstalledAppView: View {
                         Spacer()
                     }
                     .background(Color.black.opacity(0.5))
-                    AlexandriaRenderer(node: node)
+                    CodeView(source: source)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .padding(24)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .error(let message):
@@ -82,17 +81,16 @@ struct InstalledAppView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task {
-            currentAddress = "alexandria://app/\(app.id)"
+            currentAddress = app.name
             await loadAndRender()
         }
     }
     
     private func loadAndRender() async {
         do {
-            let source = try AppInstallService.shared.loadDSLSource(for: app)
-            let node = try AlexandriaParser(source: source).parse()
+            let source = try AppInstallService.shared.loadSource(for: app)
             await MainActor.run {
-                state = .app(node)
+                state = .source(source)
             }
         } catch {
             await MainActor.run {
