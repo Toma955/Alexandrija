@@ -497,7 +497,7 @@ struct EluminatiumShellView: View {
             Task {
                 do {
                     let zipData = try await EluminatiumService.shared.downloadZip(appId: catalogItem.id)
-                    let installed = try AppInstallService.shared.install(from: zipData, suggestedName: catalogItem.name, catalogId: catalogItem.id, zipHash: catalogItem.zipHash)
+                    let installed = try AppInstallService.shared.install(from: zipData, suggestedName: catalogItem.name, catalogId: catalogItem.id, zipHash: catalogItem.zipHash, webURL: catalogItem.webURL)
                     await MainActor.run {
                         ConsoleStore.shared.log("Instalirano i otvoreno: \(installed.name) (\(catalogItem.id)) ✓", type: .info)
                         installingId = nil
@@ -546,7 +546,10 @@ struct EluminatiumExpandedAppCard: View {
             .padding(.vertical, 14)
             .background(Color.white)
             
-            if source.isEmpty {
+            if let webURL = app.webURL, !webURL.isEmpty {
+                WebViewWrapper(urlString: webURL)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if source.isEmpty {
                 VStack(spacing: 16) {
                     ProgressView().scaleEffect(1.2).tint(accentColor)
                     Text("Učitavam \(app.name)...")
@@ -559,13 +562,20 @@ struct EluminatiumExpandedAppCard: View {
                 AlexandriaRenderer(node: node)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(16)
-            } else {
+                    .background(Color(hex: "f5f5f5"))
+            } else if !source.isEmpty {
                 VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 24))
+                        .foregroundColor(.orange)
                     Text("Greška pri učitavanju aplikacije")
                         .font(.system(size: 12))
                         .foregroundColor(.black.opacity(0.6))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.white)
+            } else {
+                EmptyView()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -576,7 +586,13 @@ struct EluminatiumExpandedAppCard: View {
     
     private func tryParseSource() {
         guard !source.isEmpty else { return }
-        parsedNode = try? AlexandriaParser(source: source).parse()
+        do {
+            let node = try AlexandriaParser(source: source).parse()
+            parsedNode = node
+        } catch {
+            ConsoleStore.shared.log("Kartica – parse greška: \(error.localizedDescription)", type: .error)
+            parsedNode = nil
+        }
     }
 }
 
@@ -758,7 +774,7 @@ struct SearchEngineSection: View {
         Task {
             do {
                 let zipData = try await EluminatiumService.shared.downloadZip(appId: catalogItem.id)
-                let installed = try AppInstallService.shared.install(from: zipData, suggestedName: catalogItem.name, catalogId: catalogItem.id, zipHash: catalogItem.zipHash)
+                let installed = try AppInstallService.shared.install(from: zipData, suggestedName: catalogItem.name, catalogId: catalogItem.id, zipHash: catalogItem.zipHash, webURL: catalogItem.webURL)
                 await MainActor.run {
                     ConsoleStore.shared.log("Instalirano (suggestion): \(installed.name) ✓", type: .info)
                     installingSuggestionId = nil
@@ -920,7 +936,7 @@ struct EluminatiumSearchResultsView: View {
         Task {
             do {
                 let zipData = try await EluminatiumService.shared.downloadZip(appId: catalogItem.id)
-                let installed = try AppInstallService.shared.install(from: zipData, suggestedName: catalogItem.name, catalogId: catalogItem.id, zipHash: catalogItem.zipHash)
+                let installed = try AppInstallService.shared.install(from: zipData, suggestedName: catalogItem.name, catalogId: catalogItem.id, zipHash: catalogItem.zipHash, webURL: catalogItem.webURL)
                 await MainActor.run {
                     ConsoleStore.shared.log("Instalirano i otvoreno: \(installed.name) (\(catalogItem.id)) ✓", type: .info)
                     installingId = nil

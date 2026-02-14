@@ -27,6 +27,8 @@ struct EluminatiumAppCatalogItem: Codable, Identifiable, Equatable {
     let iconUrl: String?
     /// SHA-256 hash zipa – ako lokalna app ima isti naziv i hash, ne preuzimaj ponovo
     let zipHash: String?
+    /// Ako postoji, Alexandria prikazuje pravi web (HTML/CSS/JS) u WKWebView umjesto DSL-a
+    let webURL: String?
 }
 
 struct EluminatiumSearchResponse: Codable {

@@ -8,8 +8,8 @@
 import Foundation
 import SwiftUI
 
-/// Prioritet imena za entry point (glavna .swift datoteka)
-private let entryPointCandidates = ["index.swift", "main.swift", "App.swift", "ContentView.swift", "app.alexandria"]
+/// Prioritet imena za entry point (glavna .swift / .alexandria datoteka)
+private let entryPointCandidates = ["index.alexandria", "index.swift", "main.swift", "App.swift", "ContentView.swift", "app.alexandria"]
 
 final class AppInstallService: ObservableObject {
     static let shared = AppInstallService()
@@ -36,7 +36,8 @@ final class AppInstallService: ObservableObject {
     
     /// Instalira aplikaciju iz .zip datoteke – raspakira u folder i dodaje na listu.
     /// catalogId i zipHash: za HasTable – ako server kasnije pošalje isti hash, preskoči preuzimanje.
-    func install(from zipURL: URL, suggestedName: String? = nil, catalogId: String? = nil, zipHash: String? = nil) throws -> InstalledApp {
+    /// webURL: ako postoji, app se prikazuje kao pravi web (WKWebView) umjesto DSL-a.
+    func install(from zipURL: URL, suggestedName: String? = nil, catalogId: String? = nil, zipHash: String? = nil, webURL: String? = nil) throws -> InstalledApp {
         guard zipURL.pathExtension.lowercased() == "zip" else {
             throw AppInstallError.notZip
         }
@@ -88,7 +89,8 @@ final class AppInstallService: ObservableObject {
             entryPoint: entryPoint,
             installedAt: Date(),
             catalogId: catalogId,
-            zipHash: zipHash
+            zipHash: zipHash,
+            webURL: webURL
         )
         
         installedApps.append(app)
@@ -96,12 +98,12 @@ final class AppInstallService: ObservableObject {
         return app
     }
     
-    /// Instalira iz Data (npr. preuzeto s mreže). suggestedName, catalogId i zipHash za HasTable logiku.
-    func install(from zipData: Data, suggestedName: String? = nil, catalogId: String? = nil, zipHash: String? = nil) throws -> InstalledApp {
+    /// Instalira iz Data (npr. preuzeto s mreže). suggestedName, catalogId, zipHash za HasTable; webURL za prikaz weba.
+    func install(from zipData: Data, suggestedName: String? = nil, catalogId: String? = nil, zipHash: String? = nil, webURL: String? = nil) throws -> InstalledApp {
         let tempZip = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".zip")
         try zipData.write(to: tempZip)
         defer { try? fileManager.removeItem(at: tempZip) }
-        return try install(from: tempZip, suggestedName: suggestedName, catalogId: catalogId, zipHash: zipHash)
+        return try install(from: tempZip, suggestedName: suggestedName, catalogId: catalogId, zipHash: zipHash, webURL: webURL)
     }
     
     /// Instalira iz URL-a (npr. fileImporter) – kopira u temp radi sandbox pristupa
@@ -203,7 +205,8 @@ final class AppInstallService: ObservableObject {
                     entryPoint: entry,
                     installedAt: Date(),
                     catalogId: nil,
-                    zipHash: nil
+                    zipHash: nil,
+                    webURL: nil
                 )
                 apps.append(app)
             }
@@ -229,6 +232,7 @@ private struct InstalledAppCodable: Codable {
     let installedAt: Date
     let catalogId: String?
     let zipHash: String?
+    let webURL: String?
     
     init(from app: InstalledApp) {
         id = app.id
@@ -238,6 +242,7 @@ private struct InstalledAppCodable: Codable {
         installedAt = app.installedAt
         catalogId = app.catalogId
         zipHash = app.zipHash
+        webURL = app.webURL
     }
     
     func toInstalledApp(fileManager: FileManager) -> InstalledApp? {
@@ -246,7 +251,7 @@ private struct InstalledAppCodable: Codable {
               fileManager.fileExists(atPath: url.appendingPathComponent(entryPoint).path) else {
             return nil
         }
-        return InstalledApp(id: id, name: name, folderURL: url, entryPoint: entryPoint, installedAt: installedAt, catalogId: catalogId, zipHash: zipHash)
+        return InstalledApp(id: id, name: name, folderURL: url, entryPoint: entryPoint, installedAt: installedAt, catalogId: catalogId, zipHash: zipHash, webURL: webURL)
     }
 }
 

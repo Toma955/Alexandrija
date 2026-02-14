@@ -20,6 +20,7 @@ struct AlexandriaRenderer: View {
     
     var body: some View {
         render(node)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     private func render(_ node: AlexandriaViewNode) -> AnyView {

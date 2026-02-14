@@ -25,6 +25,44 @@ struct InstalledAppView: View {
     }
     
     var body: some View {
+        Group {
+            if let webURL = app.webURL, !webURL.isEmpty {
+                // Pravi web (Google, YouTube, Spotify, …) – HTML/CSS/JS u WKWebView
+                VStack(spacing: 0) {
+                    HStack {
+                        Button { onBack?() } label: {
+                            Image(systemName: "arrow.left")
+                                .foregroundColor(accentColor)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(12)
+                        Text(app.name)
+                            .font(.headline)
+                            .foregroundColor(.white.opacity(0.9))
+                        Spacer()
+                    }
+                    .background(Color.black.opacity(0.5))
+                    WebViewWrapper(urlString: webURL)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(hex: "1a1a1a"))
+            } else {
+                dslContent
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear { currentAddress = app.name }
+        .task(id: app.id) {
+            currentAddress = app.name
+            if app.webURL == nil || app.webURL?.isEmpty == true {
+                await loadAndRender()
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var dslContent: some View {
         ZStack {
             switch state {
             case .loading:
@@ -36,6 +74,7 @@ struct InstalledAppView: View {
                         .foregroundColor(.white.opacity(0.8))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(hex: "1a1a1a"))
             case .app(let node):
                 VStack(spacing: 0) {
                     HStack {
@@ -54,8 +93,10 @@ struct InstalledAppView: View {
                     AlexandriaRenderer(node: node)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .padding(24)
+                        .background(Color(hex: "1a1a1a"))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(hex: "1a1a1a"))
             case .error(let message, let source):
                 VStack(spacing: 24) {
                     Image(systemName: "exclamationmark.triangle")
@@ -76,13 +117,8 @@ struct InstalledAppView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(hex: "1a1a1a"))
             }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear { currentAddress = app.name }
-        .task {
-            currentAddress = app.name
-            await loadAndRender()
         }
     }
     

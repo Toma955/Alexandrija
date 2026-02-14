@@ -19,6 +19,8 @@ struct InstalledApp: Identifiable, Equatable {
     let catalogId: String?
     /// Hash zipa pri instalaciji – ako se podudara s serverom, ne treba ponovno preuzimanje
     let zipHash: String?
+    /// Ako postoji, prikaži pravi web (Google, YouTube, itd.) u WKWebView umjesto DSL-a
+    let webURL: String?
     
     /// Pun URL do entry point datoteke
     var entryURL: URL {

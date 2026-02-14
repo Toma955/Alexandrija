@@ -439,6 +439,7 @@ private struct AddSearchEngineSheet: View {
 // MARK: - Izgled / Tema
 private struct AppearanceSettingsSection: View {
     @AppStorage("appTheme") private var appThemeRaw = AppTheme.system.rawValue
+    @AppStorage("themeRegistrySelectedThemeId") private var islandThemeId: String = "default"
     let accentColor: Color
     
     private var appTheme: Binding<AppTheme> {
@@ -470,6 +471,25 @@ private struct AppearanceSettingsSection: View {
                                 appTheme.wrappedValue = theme
                             }
                         }
+                    }
+                }
+            }
+            
+            SettingsCard(title: "Tema Islanda") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Ikone u Islandu – odaberi set ikona (kasnije i teme s marketa).")
+                        .font(.system(size: 13))
+                        .foregroundColor(.white.opacity(0.7))
+                    
+                    Picker("Tema", selection: $islandThemeId) {
+                        ForEach(ThemeRegistry.all) { theme in
+                            Text(theme.displayName).tag(theme.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .onChange(of: islandThemeId) { _, newValue in
+                        ThemeRegistry.selectedThemeId = newValue
                     }
                 }
             }

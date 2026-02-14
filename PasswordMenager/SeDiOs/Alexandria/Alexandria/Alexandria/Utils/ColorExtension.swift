@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 extension Color {
     init(hex: String) {
@@ -30,5 +31,13 @@ extension Color {
             blue: Double(b) / 255,
             opacity: Double(a) / 255
         )
+    }
+
+    /// Hex string (RRGGBB) za persistenciju; koristi NSColor komponente.
+    var hexString: String {
+        let ns = NSColor(self)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        ns.getRed(&r, green: &g, blue: &b, alpha: &a)
+        return String(format: "%02x%02x%02x", Int(r * 255), Int(g * 255), Int(b * 255))
     }
 }

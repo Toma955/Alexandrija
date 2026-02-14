@@ -11,6 +11,7 @@ import SwiftUI
 struct AlexandriaIsland: View {
     @AppStorage("islandTitle") private var islandTitle: String = "Alexandria"
     @AppStorage("isInternetEnabled") private var isInternetEnabled = true
+    @AppStorage("themeRegistrySelectedThemeId") private var islandThemeId: String = "default"  // promjena teme → osvježi ikone
     @State private var isExpandedPhase1 = false  // hover – ikone
     @Binding var isExpandedPhase2: Bool          // klik – puni toolbar
     @Binding var currentAddress: String         // URL trenutnog taba – prikazuje se u input baru
@@ -124,7 +125,7 @@ private struct IslandInsertBar: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            IslandPlainIcon(icon: "mic.fill", accentColor: accentColor)
+            IslandPlainIcon(icon: IslandIcon.symbol(for: .mic), accentColor: accentColor)
             IslandInsertBarTextField(text: $text, onSubmit: onSubmit)
             Button {
                 onSubmit?()
@@ -321,11 +322,11 @@ struct AlexandriaIslandContent: View {
     
     private var phase1Buttons: some View {
         HStack(spacing: 6) {
-            IslandPhase1Button(icon: "gearshape.fill", label: "Postavke", accentColor: accentColor, action: onOpenSettings)
-            IslandPhase1Button(icon: "square.grid.2x2", label: "Aplikacije", accentColor: accentColor, action: onOpenAppLibrary)
-            IslandPhase1Button(icon: "plus.circle.fill", label: "Novi tab", accentColor: accentColor, action: onOpenNewTab)
-            IslandPhase1Button(icon: "star.fill", label: "Omiljeno", accentColor: accentColor)
-            IslandPhase1Button(icon: "magnifyingglass", label: "Pretraživanje", accentColor: accentColor, action: onOpenSearch)
+            IslandPhase1Button(icon: IslandIcon.symbol(for: .settings), label: "Postavke", accentColor: accentColor, action: onOpenSettings)
+            IslandPhase1Button(icon: IslandIcon.symbol(for: .appLibrary), label: "Aplikacije", accentColor: accentColor, action: onOpenAppLibrary)
+            IslandPhase1Button(icon: IslandIcon.symbol(for: .newTab), label: "Novi tab", accentColor: accentColor, action: onOpenNewTab)
+            IslandPhase1Button(icon: IslandIcon.symbol(for: .favorites), label: "Omiljeno", accentColor: accentColor)
+            IslandPhase1Button(icon: IslandIcon.symbol(for: .search), label: "Pretraživanje", accentColor: accentColor, action: onOpenSearch)
         }
     }
     
@@ -336,8 +337,8 @@ struct AlexandriaIslandContent: View {
 
         return Grid(alignment: .center, horizontalSpacing: gap, verticalSpacing: gap) {
             GridRow {
-                IslandBackForwardButton(icon: "chevron.backward", label: "Nazad", accentColor: accentColor, action: { onBack?() })
-                IslandBackForwardButton(icon: "chevron.forward", label: "Naprijed", accentColor: accentColor, action: { onForward?() })
+                IslandBackForwardButton(icon: IslandIcon.symbol(for: .back), label: "Nazad", accentColor: accentColor, action: { onBack?() })
+                IslandBackForwardButton(icon: IslandIcon.symbol(for: .forward), label: "Naprijed", accentColor: accentColor, action: { onForward?() })
                 IslandInsertBar(text: $insertBarText, accentColor: accentColor) {
                     let q = insertBarText.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !q.isEmpty else { return }
@@ -346,24 +347,24 @@ struct AlexandriaIslandContent: View {
                 }
                 .frame(maxWidth: .infinity)
                 .gridCellColumns(9)
-                Image(systemName: "globe")
+                Image(systemName: IslandIcon.symbol(for: .globe))
                     .font(.system(size: 11))
                     .foregroundColor(globeIndicatorColor)
                     .frame(width: btnW, height: btnW)
             }
             GridRow {
-                IslandRoundButton(icon: "minus.magnifyingglass", accentColor: accentColor)
-                IslandRoundButton(icon: "rectangle.grid.2x2", accentColor: accentColor, action: { onOpenAppLibrary?() })
-                IslandRoundButton(icon: "plus.magnifyingglass", accentColor: accentColor)
-                IslandRoundButton(icon: "house.fill", accentColor: accentColor)
-                IslandRoundButton(icon: "arrow.clockwise", accentColor: accentColor)
-                IslandRoundButton(icon: "hammer.fill", accentColor: accentColor, action: { onOpenDevMode?() })
-                IslandRoundButton(icon: "person.fill", accentColor: accentColor)
-                IslandRoundButton(icon: "printer", accentColor: accentColor)
-                IslandRoundButton(icon: "keyboard", accentColor: accentColor)
-                IslandRoundButton(icon: "bag.fill", accentColor: accentColor)
-                IslandRoundButton(icon: "plus", accentColor: accentColor, action: { onOpenNewTab?() })
-                IslandRoundButton(icon: "gearshape.fill", accentColor: accentColor, action: { onOpenSettings?() })
+                IslandRoundButton(icon: IslandIcon.symbol(for: .magnifyingGlassMinus), accentColor: accentColor)
+                IslandRoundButton(icon: IslandIcon.symbol(for: .grid), accentColor: accentColor, action: { onOpenAppLibrary?() })
+                IslandRoundButton(icon: IslandIcon.symbol(for: .magnifyingGlassPlus), accentColor: accentColor)
+                IslandRoundButton(icon: IslandIcon.symbol(for: .home), accentColor: accentColor)
+                IslandRoundButton(icon: IslandIcon.symbol(for: .reload), accentColor: accentColor)
+                IslandRoundButton(icon: IslandIcon.symbol(for: .devMode), accentColor: accentColor, action: { onOpenDevMode?() })
+                IslandRoundButton(icon: IslandIcon.symbol(for: .person), accentColor: accentColor)
+                IslandRoundButton(icon: IslandIcon.symbol(for: .printer), accentColor: accentColor)
+                IslandRoundButton(icon: IslandIcon.symbol(for: .keyboard), accentColor: accentColor)
+                IslandRoundButton(icon: IslandIcon.symbol(for: .bag), accentColor: accentColor)
+                IslandRoundButton(icon: IslandIcon.symbol(for: .plus), accentColor: accentColor, action: { onOpenNewTab?() })
+                IslandRoundButton(icon: IslandIcon.symbol(for: .settings), accentColor: accentColor, action: { onOpenSettings?() })
             }
         }
     }
