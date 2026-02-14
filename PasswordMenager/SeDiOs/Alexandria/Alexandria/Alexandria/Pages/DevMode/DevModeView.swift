@@ -230,10 +230,11 @@ private struct DevModeAppPreviewView: View {
     
     @State private var state: PreviewState = .loading
     @State private var loadedSource: String = ""
+    @State private var showCodeView = false
     
     private enum PreviewState {
         case loading
-        case ready   // Swift izvornik učitan – prikazuje se samo kod
+        case app(AlexandriaViewNode)
         case error(String)
     }
     
@@ -262,9 +263,18 @@ private struct DevModeAppPreviewView: View {
                     .truncationMode(.middle)
                 Spacer()
                 if !loadedSource.isEmpty {
-                    Text("Swift izvornik")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.white.opacity(0.6))
+                    HStack(spacing: 8) {
+                        Button { showCodeView = false } label: {
+                            Text("Pregled").font(.system(size: 11, weight: .medium))
+                                .foregroundColor(showCodeView ? .white.opacity(0.6) : accentColor)
+                        }
+                        .buttonStyle(.plain)
+                        Button { showCodeView = true } label: {
+                            Text("Kod").font(.system(size: 11, weight: .medium))
+                                .foregroundColor(showCodeView ? accentColor : .white.opacity(0.6))
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
             .padding(12)
@@ -282,9 +292,15 @@ private struct DevModeAppPreviewView: View {
                             .foregroundColor(.white.opacity(0.8))
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                case .ready:
-                    CodeView(source: loadedSource)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                case .app(let node):
+                    if showCodeView {
+                        CodeView(source: loadedSource)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        AlexandriaRenderer(node: node)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .padding(16)
+                    }
                 case .error(let message):
                     if !loadedSource.isEmpty {
                         CodeView(source: loadedSource)
@@ -321,10 +337,11 @@ private struct DevModeAppPreviewView: View {
         }
         do {
             let source = try await EluminatiumService.shared.fetchSource(appId: appId)
+            await MainActor.run { loadedSource = source }
+            let node = try AlexandriaParser(source: source).parse()
             await MainActor.run {
-                loadedSource = source
-                ConsoleStore.shared.log("Dev Mode: Swift izvornik \(appId) učitan ✓", type: .info)
-                state = .ready
+                ConsoleStore.shared.log("Dev Mode: \(appId) učitana ✓", type: .info)
+                state = .app(node)
             }
         } catch {
             await MainActor.run {

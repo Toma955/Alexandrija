@@ -18,6 +18,8 @@ struct AlexandriaIsland: View {
     @ObservedObject private var networkMonitor = NetworkMonitorService.shared
 
     private var accentColor: Color { AlexandriaTheme.accentColor }
+    var onBack: (() -> Void)?
+    var onForward: (() -> Void)?
     var onOpenSettings: (() -> Void)?
     var onOpenSearch: (() -> Void)?
     var onSubmitFromInsertBar: ((String) -> Void)?
@@ -38,6 +40,8 @@ struct AlexandriaIsland: View {
                     networkStatus: networkMonitor.status,
                     isInternetEnabled: isInternetEnabled,
                     accentColor: accentColor,
+                    onBack: onBack,
+                    onForward: onForward,
                     onOpenSettings: onOpenSettings,
                     onOpenAppLibrary: { showAppLibrary = true },
                     onOpenSearch: onOpenSearch,
@@ -71,6 +75,30 @@ private struct IslandRoundButton: View {
                 .foregroundColor(accentColor)
                 .frame(width: 26, height: 26)
                 .background(Circle().fill(Color.white.opacity(0.08)))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Nazad / Naprijed gumb (strelica + natpis) gore u toolbaru
+private struct IslandBackForwardButton: View {
+    let icon: String
+    let label: String
+    let accentColor: Color
+    var action: () -> Void = {}
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 0) {
+                Image(systemName: icon)
+                    .font(.system(size: 11))
+                    .foregroundColor(accentColor)
+                Text(label)
+                    .font(.system(size: 7, weight: .medium))
+                    .foregroundColor(accentColor.opacity(0.9))
+            }
+            .frame(width: 32, height: 34)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.08)))
         }
         .buttonStyle(.plain)
     }
@@ -191,6 +219,8 @@ struct AlexandriaIslandContent: View {
     let networkStatus: NetworkStatus
     let isInternetEnabled: Bool
     let accentColor: Color
+    var onBack: (() -> Void)?
+    var onForward: (() -> Void)?
     var onOpenSettings: (() -> Void)?
     var onOpenAppLibrary: (() -> Void)?
     var onOpenSearch: (() -> Void)?
@@ -306,8 +336,8 @@ struct AlexandriaIslandContent: View {
 
         return Grid(alignment: .center, horizontalSpacing: gap, verticalSpacing: gap) {
             GridRow {
-                IslandRoundButton(icon: "chevron.backward", accentColor: accentColor)
-                IslandRoundButton(icon: "chevron.forward", accentColor: accentColor)
+                IslandBackForwardButton(icon: "chevron.backward", label: "Nazad", accentColor: accentColor, action: { onBack?() })
+                IslandBackForwardButton(icon: "chevron.forward", label: "Naprijed", accentColor: accentColor, action: { onForward?() })
                 IslandInsertBar(text: $insertBarText, accentColor: accentColor) {
                     let q = insertBarText.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !q.isEmpty else { return }

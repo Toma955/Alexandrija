@@ -7,8 +7,7 @@
 
 import SwiftUI
 
-/// Prikazuje instaliranu aplikaciju – učitava izvornik, parsira i renderira (app browser).
-/// Za YouTube (catalogId "youtube") prikazuje pravi web (HTML/JS/CSS) preko WKWebView.
+/// Prikazuje instaliranu aplikaciju – učitava Swift (DSL), parsira i renderira. Ne dira se logika appova.
 struct InstalledAppView: View {
     let app: InstalledApp
     @Binding var currentAddress: String
@@ -19,18 +18,6 @@ struct InstalledAppView: View {
     
     private var accentColor: Color { AlexandriaTheme.accentColor }
     
-    /// Ako nije nil, app se prikazuje kao pravi web (Swift dohvaća HTML/CSS/JS preko WKWebView).
-    private var webAppURL: String? {
-        let id = app.catalogId?.lowercased() ?? ""
-        let name = app.name.lowercased()
-        if id == "youtube" || name.contains("youtube") { return "https://www.youtube.com" }
-        if id == "google" || name.contains("google") { return "https://www.google.com" }
-        if id == "spotify" || name.contains("spotify") { return "https://open.spotify.com" }
-        return nil
-    }
-    
-    private var isWebApp: Bool { webAppURL != nil }
-    
     enum ViewState {
         case loading
         case app(AlexandriaViewNode)
@@ -38,37 +25,6 @@ struct InstalledAppView: View {
     }
     
     var body: some View {
-        if isWebApp {
-            webAppBody
-        } else {
-            dslAppBody
-        }
-    }
-    
-    /// Prikaz za web app – WKWebView dohvaća i renderira HTML, CSS, JS s danog URL-a.
-    private var webAppBody: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Button { onBack?() } label: {
-                    Image(systemName: "arrow.left")
-                        .foregroundColor(accentColor)
-                }
-                .buttonStyle(.plain)
-                .padding(12)
-                Text(app.name)
-                    .font(.headline)
-                    .foregroundColor(.white.opacity(0.9))
-                Spacer()
-            }
-            .background(Color.black.opacity(0.5))
-            WebViewWrapper(urlString: webAppURL ?? "https://www.google.com")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .task { currentAddress = app.name }
-    }
-    
-    private var dslAppBody: some View {
         ZStack {
             switch state {
             case .loading:
@@ -123,6 +79,7 @@ struct InstalledAppView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear { currentAddress = app.name }
         .task {
             currentAddress = app.name
             await loadAndRender()

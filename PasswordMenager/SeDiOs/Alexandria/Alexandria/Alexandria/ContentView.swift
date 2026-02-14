@@ -100,6 +100,7 @@ private struct ScreenElement: View {
     var selectedTab: BrowserTabItem?
     @Binding var initialSearchQuery: String?
     @Binding var currentAddress: String
+    var setBackAction: (((() -> Void)?) -> Void)?
     var onBackFromApp: (() -> Void)?
     var onOpenAppFromSearch: ((InstalledApp) -> Void)?
     var onSwitchToDevMode: (() -> Void)?
@@ -109,7 +110,7 @@ private struct ScreenElement: View {
             if let tab = selectedTab {
                 switch tab.type {
                 case .search:
-                    EluminatiumView(initialSearchQuery: $initialSearchQuery, currentAddress: $currentAddress, onOpenAppFromSearch: onOpenAppFromSearch, onSwitchToDevMode: onSwitchToDevMode)
+                    EluminatiumView(initialSearchQuery: $initialSearchQuery, currentAddress: $currentAddress, onOpenAppFromSearch: onOpenAppFromSearch, onSwitchToDevMode: onSwitchToDevMode, setBackAction: setBackAction)
                 case .empty:
                     Color.clear
                         .onAppear { currentAddress = "" }
@@ -162,6 +163,8 @@ struct ContentView: View {
     @State private var islandPhase2Expanded = false
     @State private var islandSearchQuery: String?
     @State private var currentAddress = ""
+    /// Akcija za Island „Nazad” kad je u Eluminatiumu otvoren app u kartici (postavlja Eluminatium).
+    @State private var islandBackAction: (() -> Void)? = nil
 
     private var selectedTab: BrowserTabItem? {
         if let id = selectedTabId, let tab = tabs.first(where: { $0.id == id }) {
@@ -224,6 +227,15 @@ struct ContentView: View {
                 AlexandriaIsland(
                     isExpandedPhase2: $islandPhase2Expanded,
                     currentAddress: $currentAddress,
+                    onBack: {
+                        if case .app = selectedTab?.type {
+                            tabs.removeAll { $0.id == selectedTab?.id }
+                            selectedTabId = tabs.first?.id
+                        } else {
+                            islandBackAction?()
+                        }
+                    },
+                    onForward: nil,
                     onOpenSettings: { showSettings.wrappedValue = true },
                     onOpenSearch: {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
@@ -294,6 +306,7 @@ struct ContentView: View {
                 selectedTab: selectedTab,
                 initialSearchQuery: $islandSearchQuery,
                 currentAddress: $currentAddress,
+                setBackAction: { islandBackAction = $0 },
                 onBackFromApp: {
                     if case .app = selectedTab?.type {
                         tabs.removeAll { $0.id == selectedTab?.id }

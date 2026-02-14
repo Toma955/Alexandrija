@@ -199,6 +199,8 @@ struct EluminatiumView: View {
     @State private var serverUINode: AlexandriaViewNode?
     var onOpenAppFromSearch: ((InstalledApp) -> Void)?
     var onSwitchToDevMode: (() -> Void)?
+    /// Postavi akciju za Island „Nazad” kad je app otvoren u kartici.
+    var setBackAction: (((() -> Void)?) -> Void)? = nil
 
     var body: some View {
         ZStack {
@@ -223,7 +225,8 @@ struct EluminatiumView: View {
                         initialSearchQuery: $initialSearchQuery,
                         currentAddress: $currentAddress,
                         onOpenSettings: { showSettings = true },
-                        onOpenAppFromSearch: onOpenAppFromSearch
+                        onOpenAppFromSearch: onOpenAppFromSearch,
+                        setBackAction: setBackAction
                     )
                 case .loading:
                     VStack(spacing: 16) {
@@ -259,6 +262,7 @@ struct EluminatiumView: View {
                         currentAddress: $currentAddress,
                         onOpenSettings: { showSettings = true },
                         onOpenAppFromSearch: onOpenAppFromSearch,
+                        setBackAction: setBackAction,
                         pageListItems: items
                     )
                 case .error(let message):
@@ -346,6 +350,8 @@ struct EluminatiumShellView: View {
     @Binding var currentAddress: String
     var onOpenSettings: (() -> Void)?
     var onOpenAppFromSearch: ((InstalledApp) -> Void)?
+    /// Kad je app otvoren u kartici, postavi ovdje akciju za Island „Nazad”; inače nil.
+    var setBackAction: (((() -> Void)?) -> Void)? = nil
     var pageListItems: [EluminatiumPageItem]? = nil
     
     @State private var installingId: String?
@@ -409,6 +415,9 @@ struct EluminatiumShellView: View {
                     onBack: {
                         appInCard = nil
                         loadedSourceInCard = ""
+                        currentAddress = SearchEngineManager.shared.selectedEngineURL
+                            .trimmingCharacters(in: .whitespaces)
+                            .replacingOccurrences(of: "/$", with: "", options: .regularExpression)
                     }
                 )
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))
@@ -432,6 +441,7 @@ struct EluminatiumShellView: View {
                             onOpenAppInCard: { installed in
                                 appInCard = installed
                                 loadSourceForCard(installed)
+                                currentAddress = installed.name
                             },
                             searchActive: $searchActive,
                             shellStyle: true
@@ -446,6 +456,19 @@ struct EluminatiumShellView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.easeInOut(duration: 0.3), value: appInCard?.id)
+        .onChange(of: appInCard?.id) { _, _ in
+            if appInCard != nil {
+                setBackAction?({
+                    appInCard = nil
+                    loadedSourceInCard = ""
+                    currentAddress = SearchEngineManager.shared.selectedEngineURL
+                        .trimmingCharacters(in: .whitespaces)
+                        .replacingOccurrences(of: "/$", with: "", options: .regularExpression)
+                })
+            } else {
+                setBackAction?(nil)
+            }
+        }
     }
     
     private func loadSourceForCard(_ app: InstalledApp) {
@@ -763,7 +786,7 @@ struct SearchEngineSection: View {
     private func performSearch(with query: String, source: EluminatiumRequestSource = .searchBar) {
         guard !query.isEmpty else { return }
 
-        // Samo Eluminatium katalog – što god korisnik upisao = pretraga kataloga
+        // Alexandria ne pretražuje web – šalje upit odabranom pretraživaču (protokol)
         var searchQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if let url = URL(string: query), ["http", "https"].contains(url.scheme?.lowercased() ?? ""), let host = url.host, !host.isEmpty {
             currentAddress = url.absoluteString

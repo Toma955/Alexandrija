@@ -2,7 +2,8 @@
 //  SearchEngineManager.swift
 //  Alexandria
 //
-//  Upravljanje listom pretraživača i odabranim.
+//  Alexandria ne pretražuje web – koristi pretraživač kojeg korisnik izabere (protokol).
+//  Ovaj manager drži listu pretraživača i odabrani; sve „pretrage” idu na odabrani engine.
 //
 
 import Foundation

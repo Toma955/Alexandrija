@@ -2,7 +2,8 @@
 //  EluminatiumService.swift
 //  Alexandria
 //
-//  Klijent za Eluminatium Node.js pretraživač – pretraga i preuzimanje appova.
+//  Alexandria ne pretražuje web – koristi odabrani pretraživač (protokol). Pretraživač također
+//  ne pretražuje web, samo svoj app library (katalog). Ovaj servis šalje upite na njegov URL.
 //
 
 import Foundation
@@ -88,7 +89,7 @@ final class EluminatiumService {
         }
     }
     
-    /// Pretraži aplikacije
+    /// Pošalji upit odabranom pretraživaču (protokol) – pretragu obavlja pretraživač, ne Alexandria.
     func search(query: String, source: EluminatiumRequestSource = .searchBar) async throws -> [EluminatiumAppCatalogItem] {
         guard !baseURL.isEmpty else {
             log("[\(source.rawValue)] Nema postavljenog servera", type: .error)
