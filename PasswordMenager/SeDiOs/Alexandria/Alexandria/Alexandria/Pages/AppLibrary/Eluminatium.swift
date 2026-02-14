@@ -26,7 +26,7 @@ struct AppIconView: View {
     let size: CGFloat
     let accentColor: Color
     
-    init(iconUrl: String?, systemName: String = "app.badge.fill", size: CGFloat = 24, accentColor: Color = Color(hex: "ff5c00")) {
+    init(iconUrl: String?, systemName: String = "app.badge.fill", size: CGFloat = 24, accentColor: Color = AlexandriaTheme.accentColor) {
         self.iconUrl = iconUrl
         self.systemName = systemName
         self.size = size
@@ -241,7 +241,7 @@ struct EluminatiumView: View {
                             content = .idle(serverUI: serverUINode)
                         } label: {
                             Image(systemName: "arrow.left")
-                                .foregroundColor(Color(hex: "ff5c00"))
+                                .foregroundColor(AlexandriaTheme.accentColor)
                         }
                         .buttonStyle(.plain)
                         .padding(12)
@@ -354,7 +354,7 @@ struct EluminatiumShellView: View {
     @State private var loadedSourceInCard: String = ""
     /// Kad korisnik tipka: naslov nestane, kvadrat se proširi prema gore, unos prema dolje.
     @State private var searchActive = false
-    private let accentColor = Color(hex: "ff5c00")
+    private var accentColor: Color { AlexandriaTheme.accentColor }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -494,23 +494,22 @@ struct EluminatiumShellView: View {
     }
 }
 
-// MARK: - Proširena kartica – app učitana unutar bijelog okvira do rubova
+// MARK: - Proširena kartica – app se samo renderira (app browser, bez Kod/Pregled)
 struct EluminatiumExpandedAppCard: View {
     let app: InstalledApp
     let source: String
     let accentColor: Color
     var onBack: () -> Void
     
+    @State private var parsedNode: AlexandriaViewNode?
+    
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Button {
-                    onBack()
-                } label: {
+                Button { onBack() } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "chevron.left")
-                        Text("Nazad")
-                            .font(.system(size: 13, weight: .medium))
+                        Text("Nazad").font(.system(size: 13, weight: .medium))
                     }
                     .foregroundColor(accentColor)
                 }
@@ -526,23 +525,35 @@ struct EluminatiumExpandedAppCard: View {
             
             if source.isEmpty {
                 VStack(spacing: 16) {
-                    ProgressView()
-                        .scaleEffect(1.2)
-                        .tint(accentColor)
+                    ProgressView().scaleEffect(1.2).tint(accentColor)
                     Text("Učitavam \(app.name)...")
                         .font(.system(size: 13))
                         .foregroundColor(.black.opacity(0.7))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.white)
-            } else {
-                CodeView(source: source, accentColor: accentColor, showCopyButton: true)
+            } else if let node = parsedNode {
+                AlexandriaRenderer(node: node)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(16)
+            } else {
+                VStack(spacing: 12) {
+                    Text("Greška pri učitavanju aplikacije")
+                        .font(.system(size: 12))
+                        .foregroundColor(.black.opacity(0.6))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .onAppear { tryParseSource() }
+        .onChange(of: source) { _, _ in tryParseSource() }
+    }
+    
+    private func tryParseSource() {
+        guard !source.isEmpty else { return }
+        parsedNode = try? AlexandriaParser(source: source).parse()
     }
 }
 
@@ -633,7 +644,7 @@ struct SearchEngineSection: View {
     var searchActive: Binding<Bool>?
     var shellStyle: Bool = false  // zelena pozadina – svjetlija kartica
 
-    private let accentColor = Color(hex: "ff5c00")
+    private var accentColor: Color { AlexandriaTheme.accentColor }
     
     private var hasSuggestions: Bool {
         !suggestions.isEmpty && !searchText.trimmingCharacters(in: .whitespaces).isEmpty
@@ -800,7 +811,7 @@ struct EluminatiumSearchResultsView: View {
     
     @State private var installingId: String?
     @State private var errorMessage: String?
-    private let accentColor = Color(hex: "ff5c00")
+    private var accentColor: Color { AlexandriaTheme.accentColor }
     
     var body: some View {
         VStack(spacing: 0) {

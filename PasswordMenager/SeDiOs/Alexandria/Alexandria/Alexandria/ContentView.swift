@@ -64,7 +64,7 @@ private struct BrowserTabView: View {
     let isSelected: Bool
     let onSelect: () -> Void
     let onClose: () -> Void
-    private let accentColor = Color(hex: "ff5c00")
+    private var accentColor: Color { AlexandriaTheme.accentColor }
 
     var body: some View {
         HStack(spacing: 6) {
@@ -131,7 +131,7 @@ private struct ScreenElement: View {
 private struct CircleButton: View {
     let icon: String
     var action: () -> Void = {}
-    private let accentColor = Color(hex: "ff5c00")
+    private var accentColor: Color { AlexandriaTheme.accentColor }
 
     var body: some View {
         Button(action: action) {
@@ -261,7 +261,13 @@ struct ContentView: View {
                     },
                     onOpenNewTab: {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            let newTab = BrowserTabItem(id: UUID(), type: .empty)
+                            let type: TabType
+                            switch AppSettings.onOpenAction {
+                            case .search, .webBrowser: type = .search
+                            case .empty: type = .empty
+                            case .devMode: type = .devMode
+                            }
+                            let newTab = BrowserTabItem(id: UUID(), type: type)
                             tabs.append(newTab)
                             selectedTabId = newTab.id
                         }
@@ -280,7 +286,7 @@ struct ContentView: View {
             .padding(.trailing, 16)
             .frame(maxWidth: .infinity)
             .frame(height: 48)
-            .background(Color.white)
+            .background(AlexandriaTheme.barFillColor)
             .zIndex(10)
 
             // Screen element – sadržaj taba (ispod bijelog elementa)

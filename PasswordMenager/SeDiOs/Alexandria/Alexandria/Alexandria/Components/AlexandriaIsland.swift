@@ -17,7 +17,7 @@ struct AlexandriaIsland: View {
     @State private var showAppLibrary = false
     @ObservedObject private var networkMonitor = NetworkMonitorService.shared
 
-    private let accentColor = Color(hex: "ff5c00")
+    private var accentColor: Color { AlexandriaTheme.accentColor }
     var onOpenSettings: (() -> Void)?
     var onOpenSearch: (() -> Void)?
     var onSubmitFromInsertBar: ((String) -> Void)?

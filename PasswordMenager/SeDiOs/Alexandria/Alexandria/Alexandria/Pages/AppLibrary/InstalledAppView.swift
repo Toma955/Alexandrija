@@ -2,12 +2,13 @@
 //  InstalledAppView.swift
 //  Alexandria
 //
-//  Prikaz instalirane Alexandria Swift aplikacije.
+//  App browser – prikazuje instaliranu aplikaciju (renderira UI).
 //
 
 import SwiftUI
 
-/// Prikazuje instaliranu aplikaciju – učitava Swift izvornik i prikazuje ga (samo kod, bez renderiranja).
+/// Prikazuje instaliranu aplikaciju – učitava izvornik, parsira i renderira (app browser).
+/// Za YouTube (catalogId "youtube") prikazuje pravi web (HTML/JS/CSS) preko WKWebView.
 struct InstalledAppView: View {
     let app: InstalledApp
     @Binding var currentAddress: String
@@ -16,15 +17,58 @@ struct InstalledAppView: View {
     
     @State private var state: ViewState = .loading
     
-    private let accentColor = Color(hex: "ff5c00")
+    private var accentColor: Color { AlexandriaTheme.accentColor }
+    
+    /// Ako nije nil, app se prikazuje kao pravi web (Swift dohvaća HTML/CSS/JS preko WKWebView).
+    private var webAppURL: String? {
+        let id = app.catalogId?.lowercased() ?? ""
+        let name = app.name.lowercased()
+        if id == "youtube" || name.contains("youtube") { return "https://www.youtube.com" }
+        if id == "google" || name.contains("google") { return "https://www.google.com" }
+        if id == "spotify" || name.contains("spotify") { return "https://open.spotify.com" }
+        return nil
+    }
+    
+    private var isWebApp: Bool { webAppURL != nil }
     
     enum ViewState {
         case loading
-        case source(String)
-        case error(String)
+        case app(AlexandriaViewNode)
+        case error(String, source: String?)
     }
     
     var body: some View {
+        if isWebApp {
+            webAppBody
+        } else {
+            dslAppBody
+        }
+    }
+    
+    /// Prikaz za web app – WKWebView dohvaća i renderira HTML, CSS, JS s danog URL-a.
+    private var webAppBody: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button { onBack?() } label: {
+                    Image(systemName: "arrow.left")
+                        .foregroundColor(accentColor)
+                }
+                .buttonStyle(.plain)
+                .padding(12)
+                Text(app.name)
+                    .font(.headline)
+                    .foregroundColor(.white.opacity(0.9))
+                Spacer()
+            }
+            .background(Color.black.opacity(0.5))
+            WebViewWrapper(urlString: webAppURL ?? "https://www.google.com")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task { currentAddress = app.name }
+    }
+    
+    private var dslAppBody: some View {
         ZStack {
             switch state {
             case .loading:
@@ -36,12 +80,10 @@ struct InstalledAppView: View {
                         .foregroundColor(.white.opacity(0.8))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case .source(let source):
+            case .app(let node):
                 VStack(spacing: 0) {
                     HStack {
-                        Button {
-                            onBack?()
-                        } label: {
+                        Button { onBack?() } label: {
                             Image(systemName: "arrow.left")
                                 .foregroundColor(accentColor)
                         }
@@ -53,11 +95,12 @@ struct InstalledAppView: View {
                         Spacer()
                     }
                     .background(Color.black.opacity(0.5))
-                    CodeView(source: source)
+                    AlexandriaRenderer(node: node)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(24)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case .error(let message):
+            case .error(let message, let source):
                 VStack(spacing: 24) {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.system(size: 48))
@@ -65,15 +108,15 @@ struct InstalledAppView: View {
                     Text(message)
                         .foregroundColor(.white.opacity(0.9))
                         .multilineTextAlignment(.center)
+                    if let src = source {
+                        CodeView(source: src)
+                            .frame(maxWidth: .infinity, maxHeight: 300)
+                    }
                     HStack(spacing: 16) {
-                        Button("Natrag") {
-                            onBack?()
-                        }
-                        .foregroundColor(accentColor)
-                        Button("Dev Mode") {
-                            onSwitchToDevMode?()
-                        }
-                        .foregroundColor(accentColor.opacity(0.8))
+                        Button("Natrag") { onBack?() }
+                            .foregroundColor(accentColor)
+                        Button("Dev Mode") { onSwitchToDevMode?() }
+                            .foregroundColor(accentColor.opacity(0.8))
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -89,13 +132,15 @@ struct InstalledAppView: View {
     private func loadAndRender() async {
         do {
             let source = try AppInstallService.shared.loadSource(for: app)
+            let node = try AlexandriaParser(source: source).parse()
             await MainActor.run {
-                state = .source(source)
+                state = .app(node)
             }
         } catch {
             await MainActor.run {
                 ConsoleStore.shared.log("App greška: \(error.localizedDescription)", type: .error)
-                state = .error(error.localizedDescription)
+                let src = (try? AppInstallService.shared.loadSource(for: app))
+                state = .error(error.localizedDescription, source: src)
             }
         }
     }

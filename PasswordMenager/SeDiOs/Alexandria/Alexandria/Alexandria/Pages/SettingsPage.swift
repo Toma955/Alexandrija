@@ -39,7 +39,7 @@ struct SettingsView: View {
     @State private var islandTitle: String = ""
     @State private var showAddProfile = false
     
-    private let accentColor = Color(hex: "ff5c00")
+    private var accentColor: Color { AlexandriaTheme.accentColor }
     
     var body: some View {
         ZStack {
@@ -220,9 +220,9 @@ private struct GeneralSettingsSection: View {
                 .pickerStyle(.segmented)
             }
             
-            SettingsCard(title: "Pri pokretanju") {
+            SettingsCard(title: "Pri pokretanju i novi tab") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Što se otvori kad se pokrene aplikacija")
+                    Text("Što se otvori kad se pokrene aplikacija i kad stisneš „Novi tab” (automatski otvori pretragu / web preglednik, prazno ili Dev Mode)")
                         .font(.system(size: 13))
                         .foregroundColor(.white.opacity(0.7))
                     Picker("", selection: $onOpenActionRaw) {
