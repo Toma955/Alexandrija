@@ -58,7 +58,7 @@ private struct BrowserTabItem: Identifiable {
     }
 }
 
-// MARK: - Tab = jedan objekt (pill + proširenje dole); proširenje je jedan zajednički view
+// MARK: - Tab = jedan objekt (pill + proširenje dole); naslov na sredini, hover → lijevo + X
 private struct BrowserTabView: View {
     let tab: BrowserTabItem
     let isSelected: Bool
@@ -67,68 +67,185 @@ private struct BrowserTabView: View {
     let onExpand: () -> Void
     let onClose: () -> Void
     @State private var isHovering = false
-    private static let tabW: CGFloat = 100
-    private static let tabH: CGFloat = 28
-    private static let fontSz: CGFloat = 9
+    private static let tabW: CGFloat = 152
+    private static let tabH: CGFloat = 36
+    private static let fontSz: CGFloat = 11
+    private static let hoverAnimation: Animation = .spring(response: 0.32, dampingFraction: 0.78)
 
     var body: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 8) {
             Button { onSelect(); onExpand() } label: {
                 Text(tab.title)
                     .font(.system(size: Self.fontSz, weight: .medium))
                     .foregroundColor(.black)
                     .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: isHovering ? .leading : .center)
+                    .padding(.trailing, isHovering ? 24 : 0)
             }
             .buttonStyle(.plain)
+
             Button { onClose() } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 9))
+                    .font(.system(size: 11))
                     .foregroundColor(.red.opacity(0.9))
             }
             .buttonStyle(.plain)
             .opacity(isHovering ? 1 : 0)
+            .frame(width: isHovering ? nil : 0, height: 22)
+            .clipped()
+            .allowsHitTesting(isHovering)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
         .frame(minWidth: Self.tabW, maxWidth: Self.tabW)
         .frame(height: Self.tabH)
         .background(Capsule().fill(Color.white))
+        .animation(Self.hoverAnimation, value: isHovering)
         .onHover { isHovering = $0 }
     }
 }
 
-/// Jedan view za proširenje taba (switchovi + gumbi) – koristi se u overlayu iznad svega
-private struct TabExpandedContent: View {
+// MARK: - Tab = isto kao Island: jedan view, sadržaj unutra, .frame(height: isExpanded ? nil : 36)
+private struct TabViewOneElement: View {
+    let tab: BrowserTabItem
+    let isSelected: Bool
+    let isExpanded: Bool
+    let onSelect: () -> Void
+    let onExpand: () -> Void
+    let onClose: () -> Void
+
+    private static let tabW: CGFloat = 152
+    private static let pillH: CGFloat = 36
+    private static let expandAnimation: Animation = .spring(response: 0.4, dampingFraction: 0.8)
+
+    var body: some View {
+        VStack(spacing: isExpanded ? 8 : 0) {
+            BrowserTabView(
+                tab: tab,
+                isSelected: isSelected,
+                isExpanded: isExpanded,
+                onSelect: onSelect,
+                onExpand: {
+                    withAnimation(Self.expandAnimation) { onExpand() }
+                },
+                onClose: onClose
+            )
+
+            if isExpanded {
+                TabExpandedBody(tabTitle: tab.title)
+                    .padding(.top, 4)
+            }
+        }
+        .frame(width: Self.tabW, height: isExpanded ? nil : Self.pillH)
+        .animation(Self.expandAnimation, value: isExpanded)
+        .background(
+            Group {
+                if isExpanded {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Color.white)
+                } else {
+                    Capsule().fill(Color.white)
+                }
+            }
+        )
+    }
+}
+
+// MARK: - Traka: crni kvadrat 48pt + tabovi (kao Island – svaki tab jedan view koji se samo produžuje)
+private struct TabBarView: View {
+    let tabs: [BrowserTabItem]
+    @Binding var selectedTabId: UUID?
+    @Binding var expandedTabId: UUID?
+    var onRemoveTab: (BrowserTabItem) -> Void
+
+    private static let spacing: CGFloat = 12
+    private static let leadingPad: CGFloat = 16
+    private static let barHeight: CGFloat = 48
+    private static let expandAnimation: Animation = .spring(response: 0.4, dampingFraction: 0.8)
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            Color.black
+                .frame(maxWidth: .infinity)
+                .frame(height: Self.barHeight)
+
+            HStack(alignment: .top, spacing: Self.spacing) {
+                ForEach(tabs) { tab in
+                    TabViewOneElement(
+                        tab: tab,
+                        isSelected: tab.id == selectedTabId,
+                        isExpanded: expandedTabId == tab.id,
+                        onSelect: { selectedTabId = tab.id },
+                        onExpand: {
+                            withAnimation(Self.expandAnimation) {
+                                expandedTabId = expandedTabId == tab.id ? nil : tab.id
+                            }
+                        },
+                        onClose: { onRemoveTab(tab) }
+                    )
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.leading, Self.leadingPad)
+            .padding(.trailing, Self.leadingPad)
+            .frame(maxWidth: .infinity)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
+    }
+}
+
+// MARK: - Tijelo proširenog taba – sekcije za postavke, obavijesti, pozive, poruke, music player itd.
+private struct TabExpandedBody: View {
     let tabTitle: String
     @AppStorage("tabSettingSound") private var soundEnabled = true
     @AppStorage("tabSettingRAM") private var ramEnabled = true
     @AppStorage("tabSettingMic") private var micEnabled = false
     @AppStorage("tabSettingCamera") private var cameraEnabled = false
-    private static let w: CGFloat = 100
+    private static let w: CGFloat = 152
     private static let fontSz: CGFloat = 9
-    private static let cornerRadius: CGFloat = 12
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 8) {
+            // Naslov taba
             Text(tabTitle)
                 .font(.system(size: Self.fontSz, weight: .semibold))
                 .foregroundColor(.black)
                 .lineLimit(1)
-            VStack(alignment: .leading, spacing: 2) {
-                TabPanelToggleRow(label: "Zvuk", icon: "speaker.wave.2", isOn: $soundEnabled, fontSz: Self.fontSz)
-                TabPanelToggleRow(label: "RAM", icon: "memorychip", isOn: $ramEnabled, fontSz: Self.fontSz)
-                TabPanelToggleRow(label: "Mikrofon", icon: "mic", isOn: $micEnabled, fontSz: Self.fontSz)
-                TabPanelToggleRow(label: "Kamera", icon: "camera", isOn: $cameraEnabled, fontSz: Self.fontSz)
+
+            // Sekcija: Postavke (zvuk, RAM, mik, kamera, gumbi)
+            TabExpandedSection {
+                VStack(alignment: .leading, spacing: 2) {
+                    TabPanelToggleRow(label: "Zvuk", icon: "speaker.wave.2", isOn: $soundEnabled, fontSz: Self.fontSz)
+                    TabPanelToggleRow(label: "RAM", icon: "memorychip", isOn: $ramEnabled, fontSz: Self.fontSz)
+                    TabPanelToggleRow(label: "Mikrofon", icon: "mic", isOn: $micEnabled, fontSz: Self.fontSz)
+                    TabPanelToggleRow(label: "Kamera", icon: "camera", isOn: $cameraEnabled, fontSz: Self.fontSz)
+                }
+                HStack(spacing: 5) {
+                    TabPanelRoundButton(icon: "info.circle", action: {}, fontSz: Self.fontSz)
+                    TabPanelRoundButton(icon: "speedometer", action: {}, fontSz: Self.fontSz)
+                    TabPanelRoundButton(icon: "gearshape", action: {}, fontSz: Self.fontSz)
+                }
             }
-            HStack(spacing: 5) {
-                TabPanelRoundButton(icon: "info.circle", action: {}, fontSz: Self.fontSz)
-                TabPanelRoundButton(icon: "speedometer", action: {}, fontSz: Self.fontSz)
-                TabPanelRoundButton(icon: "gearshape", action: {}, fontSz: Self.fontSz)
-            }
+
+            // Buduće sekcije: obavijesti, pozivi, poruke, music player – dodati ovdje
+            // TabExpandedSection { NotificationsRow() }
+            // TabExpandedSection { CallsRow() }
+            // TabExpandedSection { MessagesRow() }
+            // TabExpandedSection { MusicPlayerMini() }
         }
-        .padding(6)
+        .padding(8)
         .frame(width: Self.w, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Self.cornerRadius).fill(Color.white))
+    }
+}
+
+/// Jedna sekcija unutar proširenog taba (koristi se za postavke, obavijesti, pozive, itd.)
+private struct TabExpandedSection<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content()
     }
 }
 
@@ -294,77 +411,31 @@ struct ContentView: View {
     }
     
     private func mainContent(showSettings: Binding<Bool>) -> some View {
-        VStack(spacing: 0) {
-            // Crna traka – tabovi + Island; ispod nje proširene postavke taba
+        ZStack(alignment: .top) {
+            // Sloj 0 (najmanji): centralni sadržaj
             VStack(spacing: 0) {
-                ZStack {
-                    HStack(spacing: 12) {
-                        ForEach(tabs) { tab in
-                            BrowserTabView(
-                                tab: tab,
-                                isSelected: tab.id == selectedTabId,
-                                isExpanded: expandedTabId == tab.id,
-                                onSelect: { selectedTabId = tab.id },
-                                onExpand: {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        if expandedTabId == tab.id {
-                                            expandedTabId = nil
-                                        } else {
-                                            expandedTabId = tab.id
-                                        }
-                                    }
-                                },
-                                onClose: {
-                                    tabs.removeAll { $0.id == tab.id }
-                                    if expandedTabId == tab.id { expandedTabId = nil }
-                                    if tabs.isEmpty {
-                                        NSApplication.shared.terminate(nil)
-                                    } else if selectedTabId == tab.id {
-                                        selectedTabId = tabs.first?.id
-                                    }
-                                }
-                            )
-                        }
-                        Spacer(minLength: 0)
-                    }
-
-                    AlexandriaIsland(
-                    isExpandedPhase2: $islandPhase2Expanded,
+                Color.clear.frame(height: 48)
+                ScreenElement(
+                    selectedTab: selectedTab,
+                    initialSearchQuery: $islandSearchQuery,
                     currentAddress: $currentAddress,
-                    onBack: {
+                    setBackAction: { islandBackAction = $0 },
+                    tabPanelExpanded: expandedTabId != nil,
+                    onCloseTabPanel: { expandedTabId = nil },
+                    onBackFromApp: {
                         if case .app = selectedTab?.type {
                             tabs.removeAll { $0.id == selectedTab?.id }
                             selectedTabId = tabs.first?.id
-                        } else {
-                            islandBackAction?()
                         }
                     },
-                    onForward: nil,
-                    onOpenSettings: { showSettings.wrappedValue = true },
-                    onOpenSearch: {
+                    onOpenAppFromSearch: { app in
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            if let searchTab = tabs.first(where: { $0.type == .search }) {
-                                selectedTabId = searchTab.id
-                            } else {
-                                let newTab = BrowserTabItem(id: UUID(), type: .search)
-                                tabs.append(newTab)
-                                selectedTabId = newTab.id
-                            }
+                            let newTab = BrowserTabItem(id: UUID(), type: .app(app))
+                            tabs.append(newTab)
+                            selectedTabId = newTab.id
                         }
                     },
-                    onSubmitFromInsertBar: { query in
-                        islandSearchQuery = query
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            if let searchTab = tabs.first(where: { $0.type == .search }) {
-                                selectedTabId = searchTab.id
-                            } else {
-                                let newTab = BrowserTabItem(id: UUID(), type: .search)
-                                tabs.append(newTab)
-                                selectedTabId = newTab.id
-                            }
-                        }
-                    },
-                    onOpenDevMode: {
+                    onSwitchToDevMode: {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                             if let devTab = tabs.first(where: { $0.type == .devMode }) {
                                 selectedTabId = devTab.id
@@ -374,61 +445,78 @@ struct ContentView: View {
                                 selectedTabId = newTab.id
                             }
                         }
-                    },
-                    onOpenNewTab: {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            let type: TabType
-                            switch AppSettings.onOpenAction {
-                            case .search, .webBrowser: type = .search
-                            case .empty: type = .empty
-                            case .devMode: type = .devMode
-                            }
-                            let newTab = BrowserTabItem(id: UUID(), type: type)
-                            tabs.append(newTab)
-                            selectedTabId = newTab.id
-                        }
-                    },
-                    onOpenAppFromLibrary: { app in
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            let newTab = BrowserTabItem(id: UUID(), type: .app(app))
-                            tabs.append(newTab)
-                            selectedTabId = newTab.id
-                        }
                     }
                 )
-                .zIndex(1)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .overlay {
+                    if islandPhase2Expanded {
+                        Color.black.opacity(0.001)
+                            .ignoresSafeArea()
+                            .onTapGesture { islandPhase2Expanded = false }
+                    }
                 }
-                .padding(.leading, 16)
-                .padding(.trailing, 16)
-                .frame(maxWidth: .infinity)
-                .frame(height: 48)
-                .background(Color.black)
-                .zIndex(10)
             }
-            .background(Color.clear)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .zIndex(0)
 
-            // Sadržaj taba
-            ScreenElement(
-                selectedTab: selectedTab,
-                initialSearchQuery: $islandSearchQuery,
+            // Sloj 1: jedan element – traka + tabovi + prošireni panel (kao Island)
+            TabBarView(
+                tabs: tabs,
+                selectedTabId: $selectedTabId,
+                expandedTabId: $expandedTabId,
+                onRemoveTab: { tab in
+                    withAnimation(.spring(response: 0.36, dampingFraction: 0.92)) {
+                        tabs.removeAll { $0.id == tab.id }
+                        if expandedTabId == tab.id { expandedTabId = nil }
+                        if tabs.isEmpty {
+                            NSApplication.shared.terminate(nil)
+                        } else if selectedTabId == tab.id {
+                            selectedTabId = tabs.first?.id
+                        }
+                    }
+                }
+            )
+            .frame(maxWidth: .infinity, alignment: .top)
+            .zIndex(1)
+
+            // Sloj 2 (najveći): Island – ništa iznad Islanda
+            AlexandriaIsland(
+                isExpandedPhase2: $islandPhase2Expanded,
                 currentAddress: $currentAddress,
-                setBackAction: { islandBackAction = $0 },
-                tabPanelExpanded: expandedTabId != nil,
-                onCloseTabPanel: { expandedTabId = nil },
-                onBackFromApp: {
+                onBack: {
                     if case .app = selectedTab?.type {
                         tabs.removeAll { $0.id == selectedTab?.id }
                         selectedTabId = tabs.first?.id
+                    } else {
+                        islandBackAction?()
                     }
                 },
-                onOpenAppFromSearch: { app in
+                onForward: nil,
+                onOpenSettings: { showSettings.wrappedValue = true },
+                onOpenSearch: {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        let newTab = BrowserTabItem(id: UUID(), type: .app(app))
-                        tabs.append(newTab)
-                        selectedTabId = newTab.id
+                        if let searchTab = tabs.first(where: { $0.type == .search }) {
+                            selectedTabId = searchTab.id
+                        } else {
+                            let newTab = BrowserTabItem(id: UUID(), type: .search)
+                            tabs.append(newTab)
+                            selectedTabId = newTab.id
+                        }
                     }
                 },
-                onSwitchToDevMode: {
+                onSubmitFromInsertBar: { query in
+                    islandSearchQuery = query
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        if let searchTab = tabs.first(where: { $0.type == .search }) {
+                            selectedTabId = searchTab.id
+                        } else {
+                            let newTab = BrowserTabItem(id: UUID(), type: .search)
+                            tabs.append(newTab)
+                            selectedTabId = newTab.id
+                        }
+                    }
+                },
+                onOpenDevMode: {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                         if let devTab = tabs.first(where: { $0.type == .devMode }) {
                             selectedTabId = devTab.id
@@ -438,28 +526,32 @@ struct ContentView: View {
                             selectedTabId = newTab.id
                         }
                     }
+                },
+                onOpenNewTab: {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        let type: TabType
+                        switch AppSettings.onOpenAction {
+                        case .search, .webBrowser: type = .search
+                        case .empty: type = .empty
+                        case .devMode: type = .devMode
+                        }
+                        let newTab = BrowserTabItem(id: UUID(), type: type)
+                        tabs.append(newTab)
+                        selectedTabId = newTab.id
+                    }
+                },
+                onOpenAppFromLibrary: { app in
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        let newTab = BrowserTabItem(id: UUID(), type: .app(app))
+                        tabs.append(newTab)
+                        selectedTabId = newTab.id
+                    }
                 }
             )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .zIndex(0)
-            .overlay {
-                if islandPhase2Expanded {
-                    Color.black.opacity(0.001)
-                        .ignoresSafeArea()
-                        .onTapGesture { islandPhase2Expanded = false }
-                }
-            }
+            .frame(maxWidth: .infinity, alignment: .top)
+            .zIndex(3)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .overlay(alignment: .topLeading) {
-            if let expandedId = expandedTabId, let tab = tabs.first(where: { $0.id == expandedId }) {
-                TabExpandedContent(tabTitle: tab.title)
-                    .padding(.top, 48)
-                    .padding(.leading, 16)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                    .zIndex(100)
-            }
-        }
         .ignoresSafeArea(edges: .top)
         .background(AppBackgroundView().ignoresSafeArea())
         .overlay(
