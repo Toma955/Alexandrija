@@ -8,6 +8,8 @@
 import Foundation
 import SwiftUI
 
+private let consoleMaxMessages = 500
+
 @MainActor
 final class ConsoleStore: ObservableObject {
     static let shared = ConsoleStore()
@@ -17,6 +19,9 @@ final class ConsoleStore: ObservableObject {
     private init() {}
     
     func log(_ text: String, type: ConsoleMessageType = .log) {
+        if messages.count >= consoleMaxMessages {
+            messages.removeFirst(messages.count - consoleMaxMessages + 1)
+        }
         messages.append(ConsoleMessage(text: text, type: type, date: Date()))
         print("[Eluminatium] \(text)")
     }

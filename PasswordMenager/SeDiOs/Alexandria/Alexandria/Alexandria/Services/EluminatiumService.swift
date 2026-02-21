@@ -143,6 +143,11 @@ final class EluminatiumService {
                 log("Download: \(appId) – odgovor \(http.statusCode), preuzeto \(data.count) B", type: .info)
                 log("Preuzeto: \(appId) (\(data.count) B) ✓", type: .info)
             }
+            if !AppLimitsSettings.isZipSizeAllowed(bytes: data.count) {
+                let limit = AppLimitsSettings.maxZipSizeBytes ?? 0
+                log("Download: \(appId) – prekoračen limit (\(data.count) B > \(limit) B). Uključi posebnu dozvolu u Postavkama.", type: .error)
+                throw NSError(domain: "EluminatiumService", code: -2, userInfo: [NSLocalizedDescriptionKey: "Zip prevelik: \(data.count) B (limit \(limit) B). U Postavkama → Ograničenja i dozvole uključi „Dopusti prekoračenje limita”."])
+            }
             await MainActor.run {
                 DownloadTracker.shared.add(url: url.absoluteString, filename: "\(appId).zip", sizeBytes: Int64(data.count))
             }

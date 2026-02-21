@@ -25,11 +25,13 @@ final class AlexandriaParser {
     private var input: String
     private var index: String.Index
     private var depth: Int = 0
-    private let maxDepth = 100
+    private let maxDepth: Int
     
-    init(source: String) {
+    /// maxDepth: nil = koristi vrijednost iz AppLimitsSettings (konfigurabilno u Postavkama).
+    init(source: String, maxDepth: Int? = nil) {
         self.input = source
         self.index = source.startIndex
+        self.maxDepth = maxDepth ?? AppLimitsSettings.effectiveParserMaxDepth
     }
     
     func parse() throws -> AlexandriaViewNode {
@@ -480,7 +482,7 @@ final class AlexandriaParser {
             advance()
             skipWhitespaceAndNewlines()
             if index < input.endIndex && input[index].isLetter {
-                parseIdentifier()
+                _ = parseIdentifier()
                 skipWhitespaceAndNewlines()
                 if current == ":" { advance(); skipWhitespaceAndNewlines() }
             }

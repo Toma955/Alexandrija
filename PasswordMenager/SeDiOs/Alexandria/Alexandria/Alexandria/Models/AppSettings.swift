@@ -72,7 +72,20 @@ struct AppSettings {
     private static let internetEnabledKey = "isInternetEnabled"
     private static let themeKey = "appTheme"
     private static let onOpenKey = "onOpenAction"
-    
+    private static let interfaceLocaleKey = "interfaceLocaleCode"
+
+    /// Jezik sučelja (hr, en, de, …). Uvijek jedan označen – zadano Hrvatski.
+    static var interfaceLocaleCode: String {
+        get {
+            let stored = UserDefaults.standard.string(forKey: interfaceLocaleKey)
+            return InterfaceLanguage.validLocaleCode(stored: stored)
+        }
+        set {
+            let valid = InterfaceLanguage.validLocaleCode(stored: newValue)
+            UserDefaults.standard.set(valid, forKey: interfaceLocaleKey)
+        }
+    }
+
     /// Što se otvori kad app starta
     static var onOpenAction: OnOpenAction {
         get {
@@ -128,5 +141,27 @@ struct AppSettings {
     /// Prikaži panel na desnoj strani
     static var showSearchPanelRight: Bool {
         searchPanelPosition == .right || searchPanelPosition == .both
+    }
+
+    // MARK: - Backend katalog (teme, jezici, plug-ini)
+    private static let alexandriaBackendURLKey = "alexandriaBackendBaseURL"
+    private static let syncCatalogOnLaunchKey = "syncCatalogOnLaunch"
+
+    /// Zadani backend (Render free tier – cold start do ~15 s).
+    private static let defaultAlexandriaBackendURL = "https://alexandria-backend-u76b.onrender.com"
+
+    /// Base URL Alexandria backenda za katalog. Ako korisnik nije ništa upisao, koristi se zadani Render URL.
+    static var alexandriaBackendBaseURL: String {
+        get {
+            let stored = UserDefaults.standard.string(forKey: alexandriaBackendURLKey)?.trimmingCharacters(in: .whitespaces)
+            return (stored?.isEmpty == false) ? stored! : defaultAlexandriaBackendURL
+        }
+        set { UserDefaults.standard.set(newValue.trimmingCharacters(in: .whitespaces), forKey: alexandriaBackendURLKey) }
+    }
+
+    /// Pri pokretanju aplikacije osvježi katalog s backenda (ako je backend postavljen).
+    static var syncCatalogOnLaunch: Bool {
+        get { UserDefaults.standard.object(forKey: syncCatalogOnLaunchKey) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: syncCatalogOnLaunchKey) }
     }
 }

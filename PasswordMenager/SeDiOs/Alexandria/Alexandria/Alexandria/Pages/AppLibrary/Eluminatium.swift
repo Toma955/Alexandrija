@@ -472,6 +472,10 @@ struct EluminatiumShellView: View {
     }
     
     private func loadSourceForCard(_ app: InstalledApp) {
+        guard app.canViewOrSaveSource else {
+            loadedSourceInCard = ""
+            return
+        }
         Task {
             do {
                 let s = try AppInstallService.shared.loadSource(for: app)
@@ -524,6 +528,7 @@ struct EluminatiumExpandedAppCard: View {
     let accentColor: Color
     var onBack: () -> Void
     
+    @Environment(\.consoleStore) private var consoleStore
     @State private var parsedNode: AlexandriaViewNode?
     
     var body: some View {
@@ -549,6 +554,22 @@ struct EluminatiumExpandedAppCard: View {
             if let webURL = app.webURL, !webURL.isEmpty {
                 WebViewWrapper(urlString: webURL)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if !app.canViewOrSaveSource {
+                VStack(spacing: 12) {
+                    Image(systemName: "lock.doc")
+                        .font(.system(size: 32))
+                        .foregroundColor(.black.opacity(0.4))
+                    Text("Izvorni kod nije dostupan za pregled")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.black.opacity(0.7))
+                    Text("Aplikacija je u LLVM IR formatu (.ll / .bc). Kod se ne može otvoriti ni spremiti osim ako aplikacija to ne odredi.")
+                        .font(.system(size: 11))
+                        .foregroundColor(.black.opacity(0.5))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.white)
             } else if source.isEmpty {
                 VStack(spacing: 16) {
                     ProgressView().scaleEffect(1.2).tint(accentColor)
@@ -559,7 +580,7 @@ struct EluminatiumExpandedAppCard: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.white)
             } else if let node = parsedNode {
-                AlexandriaRenderer(node: node)
+                AlexandriaRenderer(node: node, console: consoleStore)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(16)
                     .background(Color(hex: "f5f5f5"))
@@ -586,12 +607,18 @@ struct EluminatiumExpandedAppCard: View {
     
     private func tryParseSource() {
         guard !source.isEmpty else { return }
-        do {
-            let node = try AlexandriaParser(source: source).parse()
-            parsedNode = node
-        } catch {
-            ConsoleStore.shared.log("Kartica – parse greška: \(error.localizedDescription)", type: .error)
-            parsedNode = nil
+        let sourceToParse = source
+        let store = consoleStore
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let node = try AlexandriaParser(source: sourceToParse).parse()
+                DispatchQueue.main.async { parsedNode = node }
+            } catch {
+                DispatchQueue.main.async {
+                    store.log("Kartica – parse greška: \(error.localizedDescription)", type: .error)
+                    parsedNode = nil
+                }
+            }
         }
     }
 }

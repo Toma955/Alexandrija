@@ -8,11 +8,17 @@
 
 import SwiftUI
 
-/// Centralizirane varijable izgleda – jedna točka za prilagodbu teme (narančasta + krem ispuna → druge boje).
+/// Zadana tema: moderna crna #111, krem #F9F6EE (ne čista 000/fff).
+private let defaultAccentHex = "F9F6EE"
+private let defaultBarFillHex = "F9F6EE"
+private let defaultBackgroundHex = "111111"
+
+/// Centralizirane varijable izgleda – jedna točka za prilagodbu teme (zadana: crno-bijela #111 + #F9F6EE).
 struct AlexandriaTheme {
     
     private static let accentHexKey = "themeAccentColorHex"
     private static let barFillHexKey = "themeBarFillColorHex"
+    private static let backgroundHexKey = "themeBackgroundColorHex"
     private static let primaryTextHexKey = "themePrimaryTextColorHex"
     private static let secondaryTextHexKey = "themeSecondaryTextColorHex"
     private static let fontNameKey = "themeFontName"
@@ -20,16 +26,22 @@ struct AlexandriaTheme {
     
     // MARK: - Hex vrijednosti (spremljene u UserDefaults; nil = koristi default)
     
-    /// Boja naglaska (narančasta po defaultu).
+    /// Boja naglaska (zadana krem #F9F6EE – crno-bijela tema).
     static var accentColorHex: String {
-        get { UserDefaults.standard.string(forKey: accentHexKey) ?? "ff5c00" }
+        get { UserDefaults.standard.string(forKey: accentHexKey) ?? defaultAccentHex }
         set { UserDefaults.standard.set(newValue, forKey: accentHexKey) }
     }
     
-    /// Boja ispune bara (Island, gornji bar – krem/bijela po defaultu).
+    /// Boja ispune bara (Island, gornji bar – zadana krem #F9F6EE, ne bijela #fff).
     static var barFillColorHex: String {
-        get { UserDefaults.standard.string(forKey: barFillHexKey) ?? "ffffff" }
+        get { UserDefaults.standard.string(forKey: barFillHexKey) ?? defaultBarFillHex }
         set { UserDefaults.standard.set(newValue, forKey: barFillHexKey) }
+    }
+    
+    /// Boja pozadine aplikacije (zadana moderna crna #111).
+    static var backgroundColorHex: String {
+        get { UserDefaults.standard.string(forKey: backgroundHexKey) ?? defaultBackgroundHex }
+        set { UserDefaults.standard.set(newValue, forKey: backgroundHexKey) }
     }
     
     /// Boja glavnog teksta (slova). nil = sustavski default.
@@ -77,6 +89,11 @@ struct AlexandriaTheme {
         Color(hex: barFillColorHex)
     }
     
+    /// Boja pozadine (moderna crna #111).
+    static var backgroundColor: Color {
+        Color(hex: backgroundColorHex)
+    }
+    
     /// Boja glavnog teksta. Ako nije postavljena, vraća primarnu (adapts light/dark).
     static var primaryTextColor: Color {
         if let hex = primaryTextColorHex { return Color(hex: hex) }
@@ -114,10 +131,11 @@ struct AlexandriaTheme {
         return .system(size: size, weight: weight)
     }
     
-    /// Reset na default vrijednosti (narančasta, bijela ispuna, sustavski font).
+    /// Reset na default vrijednosti (crno-bijela tema #111 + #F9F6EE, sustavski font).
     static func resetToDefaults() {
-        accentColorHex = "ff5c00"
-        barFillColorHex = "ffffff"
+        accentColorHex = defaultAccentHex
+        barFillColorHex = defaultBarFillHex
+        backgroundColorHex = defaultBackgroundHex
         primaryTextColorHex = nil
         secondaryTextColorHex = nil
         fontName = nil

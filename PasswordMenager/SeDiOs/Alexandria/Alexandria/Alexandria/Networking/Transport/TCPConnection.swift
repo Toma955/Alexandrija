@@ -7,6 +7,7 @@
 
 import Foundation
 import Network
+import os
 
 /// TCP konekcija – async/await wrapper oko Network.framework
 actor TCPConnection {
@@ -21,22 +22,29 @@ actor TCPConnection {
         connection = conn
         
         return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-            var resumed = false
+            // NE DIRAJ: OSAllocatedUnfairLock – Swift 6 zabranjuje captured var u concurrently-executing closure
+            let once = OSAllocatedUnfairLock(initialState: false)
             conn.stateUpdateHandler = { state in
-                guard !resumed else { return }
-                switch state {
-                case .ready:
-                    resumed = true
-                    cont.resume()
-                case .failed(let error):
-                    resumed = true
-                    cont.resume(throwing: error)
-                case .cancelled:
-                    resumed = true
-                    cont.resume(throwing: NSError(domain: "TCP", code: -1, userInfo: [NSLocalizedDescriptionKey: "Cancelled"]))
-                default:
-                    break
+                let skip = once.withLock { done -> Bool in
+                    guard !done else { return true }
+                    switch state {
+                    case .ready:
+                        done = true
+                        cont.resume()
+                        return false
+                    case .failed(let error):
+                        done = true
+                        cont.resume(throwing: error)
+                        return false
+                    case .cancelled:
+                        done = true
+                        cont.resume(throwing: NSError(domain: "TCP", code: -1, userInfo: [NSLocalizedDescriptionKey: "Cancelled"]))
+                        return false
+                    default:
+                        return false
+                    }
                 }
+                if skip { return }
             }
             conn.start(queue: queue)
         }

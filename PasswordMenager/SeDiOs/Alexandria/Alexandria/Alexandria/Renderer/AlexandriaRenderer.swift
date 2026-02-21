@@ -12,7 +12,8 @@ struct AlexandriaRenderer: View {
     let console: ConsoleStore
     let accentColor: Color
     
-    init(node: AlexandriaViewNode, console: ConsoleStore = .shared, accentColor: Color = Color(hex: "ff5c00")) {
+    /// NE DIRAJ: console nije default .shared – MainActor-isolated property ne smije se referencirati iz nonisolated init defaulta (Swift 6). Pozivi: AlexandriaRenderer(node: node, console: .shared).
+    init(node: AlexandriaViewNode, console: ConsoleStore, accentColor: Color = Color(hex: "ff5c00")) {
         self.node = node
         self.console = console
         self.accentColor = accentColor

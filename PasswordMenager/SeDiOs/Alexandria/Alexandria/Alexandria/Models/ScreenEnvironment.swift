@@ -9,6 +9,105 @@ import SwiftUI
 import AppKit
 import Combine
 
+// MARK: - Način prikaza prozora (full / half / quarter / windowed)
+
+enum WindowLayoutMode: String, Equatable {
+    case fullScreen
+    case halfScreen
+    case quarterScreen
+    case windowed
+}
+
+/// Globalni promatrač stanja prozora – ažurira se iz WindowAccessor kad se prozor promijeni.
+/// NE DIRAJ: @Published se smije mijenjati samo unutar DispatchQueue.main.async – inače "Publishing changes from within view updates".
+final class WindowLayoutObserver: ObservableObject {
+    static let shared = WindowLayoutObserver()
+
+    @Published private(set) var isFullscreen: Bool = false
+    @Published private(set) var layoutMode: WindowLayoutMode = .windowed
+
+    private var windowObservers: [NSObjectProtocol] = []
+
+    private init() {}
+
+    /// Pozovi kad imaš referencu na prozor (npr. iz WindowAccessor) i kad se prozor mijenja.
+    func updateFromWindow(_ window: NSWindow?) {
+        windowObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        windowObservers = []
+
+        guard let window = window else {
+            DispatchQueue.main.async { [weak self] in
+                self?.isFullscreen = false
+                self?.layoutMode = .windowed
+            }
+            return
+        }
+
+        updateState(window: window)
+
+        let obs1 = NotificationCenter.default.addObserver(forName: NSWindow.didEnterFullScreenNotification, object: window, queue: .main) { [weak self] _ in
+            self?.updateState(window: window)
+        }
+        let obs2 = NotificationCenter.default.addObserver(forName: NSWindow.didExitFullScreenNotification, object: window, queue: .main) { [weak self] _ in
+            self?.updateState(window: window)
+        }
+        let obs3 = NotificationCenter.default.addObserver(forName: NSWindow.didResizeNotification, object: window, queue: .main) { [weak self] _ in
+            self?.updateState(window: window)
+        }
+        windowObservers = [obs1, obs2, obs3]
+    }
+
+    private func updateState(window: NSWindow) {
+        let fullScreen = window.styleMask.contains(.fullScreen)
+        let newLayoutMode: WindowLayoutMode
+
+        guard let screen = window.screen ?? NSScreen.main else {
+            newLayoutMode = fullScreen ? .fullScreen : .windowed
+            DispatchQueue.main.async { [weak self] in
+                self?.isFullscreen = fullScreen
+                self?.layoutMode = newLayoutMode
+            }
+            return
+        }
+        let screenFrame = screen.visibleFrame
+        let windowFrame = window.frame
+
+        if fullScreen {
+            newLayoutMode = .fullScreen
+            DispatchQueue.main.async { [weak self] in
+                self?.isFullscreen = fullScreen
+                self?.layoutMode = newLayoutMode
+            }
+            return
+        }
+
+        let screenArea = screenFrame.width * screenFrame.height
+        let windowArea = windowFrame.width * windowFrame.height
+        guard screenArea > 0 else {
+            newLayoutMode = .windowed
+            DispatchQueue.main.async { [weak self] in
+                self?.isFullscreen = fullScreen
+                self?.layoutMode = newLayoutMode
+            }
+            return
+        }
+        let ratio = windowArea / screenArea
+        if ratio >= 0.85 {
+            newLayoutMode = .fullScreen
+        } else if ratio >= 0.35 && ratio < 0.65 {
+            newLayoutMode = .halfScreen
+        } else if ratio >= 0.15 && ratio < 0.40 {
+            newLayoutMode = .quarterScreen
+        } else {
+            newLayoutMode = .windowed
+        }
+        DispatchQueue.main.async { [weak self] in
+            self?.isFullscreen = fullScreen
+            self?.layoutMode = newLayoutMode
+        }
+    }
+}
+
 /// Okruženje ekrana – reaktivno, mijenja se kad se promijeni viewport/focus/theme
 final class ScreenEnvironment: ObservableObject {
     /// Inkrementira se pri svakoj promjeni – za .onChange(of: env.changeVersion)
@@ -28,8 +127,9 @@ final class ScreenEnvironment: ObservableObject {
     @Published var viewportHeight: CGFloat = 0
     @Published var keyboardHeight: CGFloat = 0
     
-    // MARK: - Stanje prozora
+    // MARK: - Stanje prozora (ažurira se iz WindowLayoutObserver)
     @Published var isFullscreen: Bool = false
+    @Published var windowLayoutMode: WindowLayoutMode = .windowed
     @Published var isFocused: Bool = true
     @Published var isVisible: Bool = true
     
@@ -62,6 +162,7 @@ final class ScreenEnvironment: ObservableObject {
             "viewportFrame": ["width": viewportWidth, "height": viewportHeight],
             "keyboardHeight": keyboardHeight,
             "isFullscreen": isFullscreen,
+            "windowLayoutMode": windowLayoutMode.rawValue,
             "isFocused": isFocused,
             "isVisible": isVisible,
             "colorScheme": colorScheme,
@@ -96,6 +197,14 @@ final class ScreenEnvironment: ObservableObject {
     func updateFocus(_ focused: Bool) {
         isFocused = focused
         isVisible = focused
+        changeVersion += 1
+    }
+
+    /// Ažurira stanje prozora (full / half / quarter) iz WindowLayoutObserver.
+    func updateWindowLayout(isFullscreen: Bool, layoutMode: WindowLayoutMode) {
+        guard self.isFullscreen != isFullscreen || self.windowLayoutMode != layoutMode else { return }
+        self.isFullscreen = isFullscreen
+        self.windowLayoutMode = layoutMode
         changeVersion += 1
     }
 }
@@ -147,9 +256,10 @@ private struct ScreenGeometryPreferenceKey: PreferenceKey {
 // MARK: - View modifier – injektira ScreenEnvironment u svaki screen element
 struct ScreenEnvironmentModifier: ViewModifier {
     @StateObject private var env = ScreenEnvironment()
+    @ObservedObject private var windowLayout = WindowLayoutObserver.shared
     @Environment(\.colorScheme) private var colorScheme
     let isSelectedTab: Bool
-    
+
     func body(content: Content) -> some View {
         content
             .background(
@@ -163,13 +273,23 @@ struct ScreenEnvironmentModifier: ViewModifier {
             )
             .onPreferenceChange(ScreenGeometryPreferenceKey.self) { value in
                 guard let value else { return }
-                env.updateFrom(size: value.size, insets: value.insets, colorScheme: colorScheme, isVisible: isSelectedTab)
+                // NE DIRAJ: async da se ne publisha tijekom view updatea
+                DispatchQueue.main.async {
+                    env.updateFrom(size: value.size, insets: value.insets, colorScheme: colorScheme, isVisible: isSelectedTab)
+                }
             }
             .onAppear {
                 env.updateFocus(isSelectedTab)
+                env.updateWindowLayout(isFullscreen: windowLayout.isFullscreen, layoutMode: windowLayout.layoutMode)
             }
             .onChange(of: isSelectedTab) { _, new in
                 env.updateFocus(new)
+            }
+            .onChange(of: windowLayout.isFullscreen) { _, full in
+                env.updateWindowLayout(isFullscreen: full, layoutMode: windowLayout.layoutMode)
+            }
+            .onChange(of: windowLayout.layoutMode) { _, mode in
+                env.updateWindowLayout(isFullscreen: windowLayout.isFullscreen, layoutMode: mode)
             }
             .environment(\.screenEnvironment, env)
     }

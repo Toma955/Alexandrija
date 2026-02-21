@@ -32,6 +32,9 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		F0E3FEFB2F3E96D200EAEA3A /* Alexandria */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F0E3FEFC2F3E96D200EAEA3A /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */,
+			);
 			path = Alexandria;
 			sourceTree = "<group>";
 		};
@@ -46,6 +49,16 @@
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		F0E3FEFC2F3E96D200EAEA3A /* Info.plist omit from Resources */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = F0E3FEF72F3E96D200EAEA3A /* Resources */;
+			membershipExceptions = (
+				Info.plist,
+			);
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		F0E3FEF62F3E96D200EAEA3A /* Frameworks */ = {

@@ -35,6 +35,47 @@ final class ProfileManager: ObservableObject {
         save()
     }
     
+    /// Kreiranje profila s punim podacima (ime, prezime, naziv, email, mobitel…)
+    func addProfile(
+        firstName: String? = nil,
+        lastName: String? = nil,
+        middleName: String? = nil,
+        preferredDisplayName: String? = nil,
+        email: String? = nil,
+        phone: String? = nil
+    ) {
+        let fallbackName = preferredDisplayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? [firstName, lastName].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }.joined(separator: " ")
+            ?? "Profil"
+        func trimmedOrNil(_ s: String?) -> String? {
+            guard let t = s?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty else { return nil }
+            return t
+        }
+        let profile = Profile(
+            name: fallbackName.isEmpty ? "Profil" : fallbackName,
+            firstName: trimmedOrNil(firstName),
+            lastName: trimmedOrNil(lastName),
+            middleName: trimmedOrNil(middleName),
+            preferredDisplayName: trimmedOrNil(preferredDisplayName),
+            email: trimmedOrNil(email),
+            phone: trimmedOrNil(phone)
+        )
+        profiles.append(profile)
+        if profiles.count == 1 {
+            switchTo(profile)
+        }
+        save()
+    }
+    
+    func updateProfile(_ profile: Profile) {
+        guard let idx = profiles.firstIndex(where: { $0.id == profile.id }) else { return }
+        profiles[idx] = profile
+        if currentProfile?.id == profile.id {
+            currentProfile = profile
+        }
+        save()
+    }
+    
     func switchTo(_ profile: Profile) {
         guard profiles.contains(where: { $0.id == profile.id }) else { return }
         currentProfile = profile

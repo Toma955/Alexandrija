@@ -19,6 +19,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil
         )
         tryEnterFullScreen()
+        BackendCatalogService.shared.syncCatalogIfNeeded()
+        // Primjena boja odabrane teme (npr. Classic) iz theme.json – inače bi ostale zadnje vrijednosti ili default.
+        ThemeRegistry.applyCurrentThemeColors()
     }
 
     @objc private func windowDidEnterFullScreen(_ notification: Notification) {

@@ -8,10 +8,10 @@
 import Foundation
 import SwiftUI
 
-/// Prioritet imena za entry point (glavna .swift / .alexandria datoteka)
-private let entryPointCandidates = ["index.alexandria", "index.swift", "main.swift", "App.swift", "ContentView.swift", "app.alexandria"]
+/// Prioritet imena za entry point: Swift/.alexandria pa LLVM IR (.ll / .bc)
+private let entryPointCandidates = ["index.alexandria", "index.swift", "main.swift", "App.swift", "ContentView.swift", "app.alexandria", "index.ll", "main.ll", "App.ll", "index.bc", "main.bc", "App.bc"]
 
-final class AppInstallService: ObservableObject {
+final class AppInstallService: ObservableObject, AppInstallServiceProtocol {
     static let shared = AppInstallService()
     
     /// Folder gdje se instaliraju aplikacije
@@ -44,6 +44,12 @@ final class AppInstallService: ObservableObject {
         guard fileManager.fileExists(atPath: zipURL.path) else {
             throw AppInstallError.fileNotFound
         }
+        if let attrs = try? fileManager.attributesOfItem(atPath: zipURL.path), let size = attrs[.size] as? Int {
+            if !AppLimitsSettings.isZipSizeAllowed(bytes: size) {
+                let limit = AppLimitsSettings.maxZipSizeBytes ?? 0
+                throw AppInstallError.sizeLimitRequiresPermission(bytes: size, limit: limit)
+            }
+        }
         
         let appId = UUID()
         let fileBaseName = zipURL.deletingPathExtension().lastPathComponent
@@ -67,8 +73,13 @@ final class AppInstallService: ObservableObject {
             throw AppInstallError.unzipFailed
         }
         
-        // Pronađi entry point
-        guard let entryPoint = findEntryPoint(in: destFolder) else {
+        // Pronađi entry point: prvo manifest (samo jedan main), pa postojeći kandidati
+        let entryPoint: String
+        if let fromManifest = AppManifestResolver.resolveEntryPoint(in: destFolder, fileManager: fileManager) {
+            entryPoint = fromManifest
+        } else if let fromCandidates = findEntryPoint(in: destFolder) {
+            entryPoint = fromCandidates
+        } else {
             try? fileManager.removeItem(at: destFolder)
             throw AppInstallError.noEntryPoint
         }
@@ -82,12 +93,16 @@ final class AppInstallService: ObservableObject {
         } else {
             appName = fileBaseName
         }
+        let sourceFormat = AppSourceFormat.from(entryPoint: entryPoint)
+        let allowsSourceInspection = sourceFormat == .swift ? true : false // LLVM IR: ne smije se otvoriti/spremati osim ako aplikacija ne odredi
         let app = InstalledApp(
             id: appId,
             name: appName,
             folderURL: destFolder,
             entryPoint: entryPoint,
             installedAt: Date(),
+            sourceFormat: sourceFormat,
+            allowsSourceInspection: allowsSourceInspection,
             catalogId: catalogId,
             zipHash: zipHash,
             webURL: webURL
@@ -100,6 +115,10 @@ final class AppInstallService: ObservableObject {
     
     /// Instalira iz Data (npr. preuzeto s mreže). suggestedName, catalogId, zipHash za HasTable; webURL za prikaz weba.
     func install(from zipData: Data, suggestedName: String? = nil, catalogId: String? = nil, zipHash: String? = nil, webURL: String? = nil) throws -> InstalledApp {
+        if !AppLimitsSettings.isZipSizeAllowed(bytes: zipData.count) {
+            let limit = AppLimitsSettings.maxZipSizeBytes ?? 0
+            throw AppInstallError.sizeLimitRequiresPermission(bytes: zipData.count, limit: limit)
+        }
         let tempZip = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".zip")
         try zipData.write(to: tempZip)
         defer { try? fileManager.removeItem(at: tempZip) }
@@ -149,7 +168,14 @@ final class AppInstallService: ObservableObject {
 
     /// Učitava Swift izvornik (.swift) iz entry point datoteke
     func loadSource(for app: InstalledApp) throws -> String {
-        let data = try Data(contentsOf: app.entryURL)
+        let url = app.entryURL
+        if let attrs = try? fileManager.attributesOfItem(atPath: url.path), let size = attrs[.size] as? Int {
+            if !AppLimitsSettings.isMainFileSizeAllowed(bytes: size) {
+                let limit = AppLimitsSettings.maxMainFileSizeBytes ?? 0
+                throw AppInstallError.sizeLimitRequiresPermission(bytes: size, limit: limit)
+            }
+        }
+        let data = try Data(contentsOf: url)
         guard let str = String(data: data, encoding: .utf8) else {
             throw AppInstallError.invalidEncoding
         }
@@ -167,13 +193,13 @@ final class AppInstallService: ObservableObject {
             }
         }
         
-        // Zatim rekurzivno traži prvu .swift ili .alexandria datoteku
+        // Zatim rekurzivno traži prvu .swift, .alexandria, .ll ili .bc datoteku
         guard let enumerator = fileManager.enumerator(at: folder, includingPropertiesForKeys: [.isRegularFileKey]) else {
             return nil
         }
         for case let url as URL in enumerator {
             let ext = url.pathExtension.lowercased()
-            if ext == "swift" || ext == "alexandria" {
+            if ext == "swift" || ext == "alexandria" || ext == "ll" || ext == "bc" {
                 let relPath = url.path.replacingOccurrences(of: folder.path + "/", with: "")
                 return relPath
             }
@@ -197,13 +223,19 @@ final class AppInstallService: ObservableObject {
         }
         var apps: [InstalledApp] = []
         for url in contents where (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
-            if let entry = findEntryPoint(in: url) {
+            let entry = AppManifestResolver.resolveEntryPoint(in: url, fileManager: fileManager)
+                ?? findEntryPoint(in: url)
+            if let entry = entry {
+                let format = AppSourceFormat.from(entryPoint: entry)
+                let allows = format == .swift
                 let app = InstalledApp(
                     id: UUID(),
                     name: url.lastPathComponent,
                     folderURL: url,
                     entryPoint: entry,
                     installedAt: Date(),
+                    sourceFormat: format,
+                    allowsSourceInspection: allows,
                     catalogId: nil,
                     zipHash: nil,
                     webURL: nil
@@ -230,6 +262,8 @@ private struct InstalledAppCodable: Codable {
     let folderPath: String
     let entryPoint: String
     let installedAt: Date
+    let sourceFormatRaw: String?
+    let allowsSourceInspection: Bool?
     let catalogId: String?
     let zipHash: String?
     let webURL: String?
@@ -240,6 +274,8 @@ private struct InstalledAppCodable: Codable {
         folderPath = app.folderURL.path
         entryPoint = app.entryPoint
         installedAt = app.installedAt
+        sourceFormatRaw = app.sourceFormat.rawValue
+        allowsSourceInspection = app.allowsSourceInspection
         catalogId = app.catalogId
         zipHash = app.zipHash
         webURL = app.webURL
@@ -251,7 +287,9 @@ private struct InstalledAppCodable: Codable {
               fileManager.fileExists(atPath: url.appendingPathComponent(entryPoint).path) else {
             return nil
         }
-        return InstalledApp(id: id, name: name, folderURL: url, entryPoint: entryPoint, installedAt: installedAt, catalogId: catalogId, zipHash: zipHash, webURL: webURL)
+        let format = sourceFormatRaw.flatMap { AppSourceFormat(rawValue: $0) } ?? AppSourceFormat.from(entryPoint: entryPoint)
+        let allows = allowsSourceInspection ?? (format == .swift)
+        return InstalledApp(id: id, name: name, folderURL: url, entryPoint: entryPoint, installedAt: installedAt, sourceFormat: format, allowsSourceInspection: allows, catalogId: catalogId, zipHash: zipHash, webURL: webURL)
     }
 }
 
@@ -262,14 +300,20 @@ enum AppInstallError: LocalizedError {
     case unzipFailed
     case noEntryPoint
     case invalidEncoding
+    case zipSizeLimitExceeded(bytes: Int, limit: Int)
+    case mainFileSizeLimitExceeded(bytes: Int, limit: Int)
+    case sizeLimitRequiresPermission(bytes: Int, limit: Int)
     
     var errorDescription: String? {
         switch self {
         case .notZip: return "Datoteka nije .zip"
         case .fileNotFound: return "Datoteka nije pronađena"
         case .unzipFailed: return "Raspakiranje nije uspjelo"
-        case .noEntryPoint: return "U .zip-u nema .swift datoteke (traži index.swift, main.swift ili App.swift)"
+        case .noEntryPoint: return "U .zip-u nema .swift, .ll ili .bc datoteke (traži index.swift, main.ll, App.bc, itd.)"
         case .invalidEncoding: return "Datoteka nije UTF-8"
+        case .zipSizeLimitExceeded(let bytes, let limit): return "Zip prevelik: \(bytes) B (limit \(limit) B). Uključi posebnu dozvolu u Postavkama → Ograničenja i dozvole."
+        case .mainFileSizeLimitExceeded(let bytes, let limit): return "Main datoteka prevelika: \(bytes) B (limit \(limit) B). Uključi posebnu dozvolu u Postavkama."
+        case .sizeLimitRequiresPermission(let bytes, let limit): return "Prekoračen limit (\(bytes) B > \(limit) B). U Postavkama → Ograničenja i dozvole uključi „Dopusti prekoračenje limita”."
         }
     }
 }

@@ -10,12 +10,18 @@ import Darwin
 
 struct DevModeView: View {
     @Binding var currentAddress: String
+    @Environment(\.consoleStore) private var consoleStore
     @State private var localIP: String = "—"
-    @State private var showConsole = false
     @State private var selectedDownloadRecord: DownloadRecord?
     @ObservedObject private var downloadTracker = DownloadTracker.shared
+    @AppStorage("devToolsConsoleLayoutMode") private var consoleLayoutModeRaw: String = DevToolsConsoleLayoutMode.panel.rawValue
+    @AppStorage("devToolsConsoleOpacityPhase") private var consoleOpacityPhase: Int = 5
+    @AppStorage("devToolsSelectedSectionId") private var devToolsSelectedSectionId: String = "general"
     
     private let accentColor = Color.white
+    private var consoleLayoutMode: DevToolsConsoleLayoutMode {
+        DevToolsConsoleLayoutMode(rawValue: consoleLayoutModeRaw) ?? .panel
+    }
     
     private var eluminatiumURL: String {
         let url = SearchEngineManager.shared.selectedEngineURL
@@ -24,136 +30,88 @@ struct DevModeView: View {
         return url.isEmpty ? "" : url
     }
     
+    private var workspaceContent: some View {
+        Group {
+            if let record = selectedDownloadRecord {
+                DevModeAppPreviewView(
+                    record: record,
+                    accentColor: accentColor,
+                    onClose: { selectedDownloadRecord = nil }
+                )
+            } else {
+                EluminatiumView(
+                    initialSearchQuery: .constant(nil),
+                    currentAddress: $currentAddress,
+                    onOpenAppFromSearch: nil,
+                    onSwitchToDevMode: nil
+                )
+            }
+        }
+        .frame(minWidth: 400)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+    
+    private func embeddedConsoleView(expandVertically: Bool) -> some View {
+        ConsoleView(
+            store: consoleStore,
+            onCollapse: nil,
+            opacityPhase: Binding(
+                get: { min(max(consoleOpacityPhase, 0), 5) },
+                set: { consoleOpacityPhase = $0 }
+            ),
+            expandVertically: expandVertically
+        )
+        .frame(minHeight: 140)
+        .frame(maxWidth: expandVertically ? .infinity : nil, maxHeight: expandVertically ? .infinity : nil)
+    }
+    
+    @ViewBuilder
+    private var leftSideContent: some View {
+        if devToolsSelectedSectionId == DevToolsSectionId.architecture.rawValue {
+            DevToolsArchitectureView(accentColor: accentColor)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+        } else {
+            switch consoleLayoutMode {
+            case .panel:
+                workspaceContent
+            case .overlay:
+                ZStack {
+                    workspaceContent
+                    embeddedConsoleView(expandVertically: true)
+                        .background(Color.black.opacity(0.92))
+                }
+            case .split:
+                VSplitView {
+                    workspaceContent
+                    embeddedConsoleView(expandVertically: false)
+                }
+            }
+        }
+    }
+    
     private var mainContent: some View {
         HSplitView {
-            // Lijevo: radni prostor – search ili prikaz odabrane preuzete app (iznad konzole)
-            Group {
-                if let record = selectedDownloadRecord {
-                    DevModeAppPreviewView(
-                        record: record,
-                        accentColor: accentColor,
-                        onClose: { selectedDownloadRecord = nil }
-                    )
-                } else {
-                    EluminatiumView(
-                        initialSearchQuery: .constant(nil),
-                        currentAddress: $currentAddress,
-                        onOpenAppFromSearch: nil,
-                        onSwitchToDevMode: nil
-                    )
-                }
-            }
-            .frame(minWidth: 400)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+            leftSideContent
+                .frame(minWidth: 400)
             
-            // Desno: Info + Preuzete datoteke (VSplitView – pomicljivo gore-dolje)
-            VSplitView {
-                // Info
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Dev Info")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(accentColor)
-                    InfoRow(label: "IP", value: localIP)
-                    InfoRow(label: "Swift", value: "Alexandria")
-                    InfoRow(label: "URL", value: eluminatiumURL.isEmpty ? "—" : eluminatiumURL)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(Color.black.opacity(0.5))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .frame(minHeight: 80)
-                
-                // Preuzete datoteke – resizable
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Preuzete datoteke")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(accentColor)
-                        Spacer()
-                        Button("Očisti") {
-                            downloadTracker.clear()
-                        }
-                        .font(.system(size: 10))
-                        .foregroundColor(accentColor)
-                    }
-                    .padding(.horizontal, 4)
-                    
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 4) {
-                            ForEach(downloadTracker.records) { r in
-                                Button {
-                                    if r.filename.lowercased().hasSuffix(".zip") {
-                                        selectedDownloadRecord = r
-                                    }
-                                } label: {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(r.filename)
-                                            .font(.system(size: 10, design: .monospaced))
-                                            .lineLimit(1)
-                                            .truncationMode(.middle)
-                                        Text(formatDate(r.date))
-                                            .font(.system(size: 9))
-                                            .foregroundColor(.white.opacity(0.5))
-                                    }
-                                    .padding(6)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(r.filename.lowercased().hasSuffix(".zip") ? Color.white.opacity(0.1) : Color.white.opacity(0.06))
-                                    .cornerRadius(4)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            if downloadTracker.records.isEmpty {
-                                Text("Nema preuzetih datoteka")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.white.opacity(0.4))
-                                    .padding(8)
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-                .padding(8)
-                .background(Color.black.opacity(0.3))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .frame(minHeight: 100)
-            }
-            .frame(width: 220)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+            DevToolsPanelView(
+                accentColor: accentColor,
+                eluminatiumURL: eluminatiumURL,
+                localIP: localIP,
+                downloadRecords: downloadTracker.records,
+                formatDate: formatDate,
+                onRecordSelect: { selectedDownloadRecord = $0 },
+                onClearDownloads: { downloadTracker.clear() }
+            )
+            .frame(width: 280)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(12)
     }
     
     var body: some View {
-        Group {
-            if showConsole {
-                VSplitView {
-                    mainContent
-                    ConsoleView(store: ConsoleStore.shared, onCollapse: { showConsole = false })
-                        .frame(minHeight: 80)
-                }
-            } else {
-                VStack(spacing: 0) {
-                    mainContent
-                    Button {
-                        showConsole = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "terminal")
-                                .font(.system(size: 12))
-                            Text("Console")
-                                .font(.system(size: 11, weight: .medium))
-                        }
-                        .foregroundColor(accentColor)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 28)
-                        .background(Color.black.opacity(0.3))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
+        mainContent
         .background(
             RoundedRectangle(cornerRadius: 20)
                 .fill(Color.black.opacity(0.2))
@@ -228,6 +186,7 @@ private struct DevModeAppPreviewView: View {
     let accentColor: Color
     var onClose: () -> Void
     
+    @Environment(\.consoleStore) private var consoleStore
     @State private var state: PreviewState = .loading
     @State private var loadedSource: String = ""
     @State private var showCodeView = false
@@ -297,7 +256,7 @@ private struct DevModeAppPreviewView: View {
                         CodeView(source: loadedSource)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
-                        AlexandriaRenderer(node: node)
+                        AlexandriaRenderer(node: node, console: consoleStore)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .padding(16)
                     }
@@ -332,20 +291,31 @@ private struct DevModeAppPreviewView: View {
     private func loadAndShow() async {
         state = .loading
         loadedSource = ""
+        let store = consoleStore
         await MainActor.run {
-            ConsoleStore.shared.log("Dev Mode: učitavam Swift izvornik: \(appId) (iz Preuzete datoteke)", type: .info)
+            store.log("Dev Mode: učitavam Swift izvornik: \(appId) (iz Preuzete datoteke)", type: .info)
         }
         do {
             let source = try await EluminatiumService.shared.fetchSource(appId: appId)
             await MainActor.run { loadedSource = source }
-            let node = try AlexandriaParser(source: source).parse()
-            await MainActor.run {
-                ConsoleStore.shared.log("Dev Mode: \(appId) učitana ✓", type: .info)
-                state = .app(node)
+            let sourceToParse = source
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let node = try AlexandriaParser(source: sourceToParse).parse()
+                    DispatchQueue.main.async {
+                        store.log("Dev Mode: \(appId) učitana ✓", type: .info)
+                        state = .app(node)
+                    }
+                } catch {
+                    DispatchQueue.main.async {
+                        store.log("Dev Mode: \(appId) – greška: \(error.localizedDescription)", type: .error)
+                        state = .error(error.localizedDescription)
+                    }
+                }
             }
         } catch {
             await MainActor.run {
-                ConsoleStore.shared.log("Dev Mode: \(appId) – greška: \(error.localizedDescription)", type: .error)
+                store.log("Dev Mode: \(appId) – greška: \(error.localizedDescription)", type: .error)
                 state = .error(error.localizedDescription)
             }
         }

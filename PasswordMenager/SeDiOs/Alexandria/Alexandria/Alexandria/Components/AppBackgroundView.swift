@@ -25,17 +25,37 @@ private struct Blob: Identifiable {
 }
 
 struct AppBackgroundView: View {
+    @AppStorage("themeRegistrySelectedThemeId") private var selectedThemeId: String = "default"
     @State private var blobs: [Blob] = []
     private let timer = Timer.publish(every: 1/60, on: .main, in: .common).autoconnect()
-    
+
+    private var themePackage: ThemePackagePayload? {
+        guard selectedThemeId != "default" else { return nil }
+        return BackendCatalogService.shared.loadThemePackage(themeId: selectedThemeId)
+    }
+
+    /// Živa pozadina (animirani blobovi): za type "blob" uvijek; za type "frosted" (Classic) kad tema ima blobColors – boje iz theme.json.
+    private var showLivingBackground: Bool {
+        guard selectedThemeId != "default", let bg = themePackage?.background else { return false }
+        if bg.type == "blob" { return true }
+        if bg.type == "frosted", let c = bg.blobColors, !c.isEmpty { return true }
+        return false
+    }
+
+    /// Polirano staklo samo za type "frosted" (Classic).
+    private var showFrostedGlass: Bool {
+        selectedThemeId != "default" && themePackage?.background?.type == "frosted"
+    }
+
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                Color.black
+                AlexandriaTheme.backgroundColor
                     .ignoresSafeArea()
-                
-                Canvas { context, size in
-                    guard !blobs.isEmpty else { return }
+
+                if showLivingBackground {
+                    Canvas { context, size in
+                        guard !blobs.isEmpty else { return }
                     
                     let minDim = min(size.width, size.height)
                     let blurRadius = max(3, min(minDim / 50, 20))
@@ -66,6 +86,13 @@ struct AppBackgroundView: View {
                         context.fill(path, with: .color(blob.color.opacity(0.6)))
                     }
                 }
+                }
+
+                if showFrostedGlass {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .ignoresSafeArea()
+                }
             }
             .ignoresSafeArea()
             .onAppear {
@@ -78,8 +105,13 @@ struct AppBackgroundView: View {
                     setupBlobs(in: newSize)
                 }
             }
+            .onChange(of: selectedThemeId) { _, _ in
+                if geo.size.width > 0 && geo.size.height > 0 {
+                    setupBlobs(in: geo.size)
+                }
+            }
             .onReceive(timer) { _ in
-                if geo.size.width > 0 && geo.size.height > 0 && !blobs.isEmpty {
+                if showLivingBackground, geo.size.width > 0 && geo.size.height > 0 && !blobs.isEmpty {
                     updateBlobs(in: geo.size)
                 }
             }
@@ -91,12 +123,20 @@ struct AppBackgroundView: View {
         let height = size.height
         guard width > 0, height > 0 else { return }
 
-        let colors: [Color] = [
-            Color(red: 1.00, green: 0.36, blue: 0.00), // ff5c00
-            Color(red: 0.95, green: 0.20, blue: 0.20),
-            Color(red: 1.00, green: 0.55, blue: 0.10),
-            Color(red: 0.95, green: 0.30, blue: 0.15)
-        ]
+        // Boje iz theme.json (npr. Classic = narančasto-crvena); ako nema, krem nijanse.
+        let colors: [Color] = {
+            if selectedThemeId != "default",
+               let package = BackendCatalogService.shared.loadThemePackage(themeId: selectedThemeId),
+               let hexList = package.background?.blobColors, !hexList.isEmpty {
+                return hexList.map { Color(hex: $0) }
+            }
+            return [
+                Color(hex: "F9F6EE"),
+                Color(hex: "E8E4DC"),
+                Color(hex: "F0EDE6"),
+                Color(hex: "DED9D0")
+            ]
+        }()
 
         let minDimension = min(width, height)
         let baseTotal = minDimension < 200 ? 40 : 45

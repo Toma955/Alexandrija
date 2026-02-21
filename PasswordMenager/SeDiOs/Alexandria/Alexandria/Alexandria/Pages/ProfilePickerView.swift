@@ -97,31 +97,93 @@ private struct AddProfileButton: View {
     }
 }
 
-// MARK: - Dodaj novi profil (sheet)
+// MARK: - Polje za unos u formi profila
+private struct ProfileFormField: View {
+    let label: String
+    let placeholder: String
+    @Binding var text: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.white.opacity(0.9))
+            TextField(placeholder, text: $text)
+                .textFieldStyle(.plain)
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.08)))
+                .foregroundColor(.white)
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.12), lineWidth: 1))
+        }
+    }
+}
+
+// MARK: - Dodaj novi profil (sheet) – puna forma za moderni browser (ime, prezime, naziv, email, mobitel)
 struct AddProfileView: View {
     @Environment(\.dismiss) var dismiss
-    @State private var name: String = ""
+    @State private var firstName: String = ""
+    @State private var lastName: String = ""
+    @State private var middleName: String = ""
+    @State private var preferredDisplayName: String = ""
+    @State private var email: String = ""
+    @State private var phone: String = ""
     
     var onDismiss: () -> Void
     
     private let accentColor = Color(hex: "ff5c00")
     
+    private var canCreate: Bool {
+        let n = preferredDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let f = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let l = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !n.isEmpty || !f.isEmpty || !l.isEmpty
+    }
+    
+    private func createProfile() {
+        guard canCreate else { return }
+        ProfileManager.shared.addProfile(
+            firstName: firstName.isEmpty ? nil : firstName,
+            lastName: lastName.isEmpty ? nil : lastName,
+            middleName: middleName.isEmpty ? nil : middleName,
+            preferredDisplayName: preferredDisplayName.isEmpty ? nil : preferredDisplayName,
+            email: email.isEmpty ? nil : email,
+            phone: phone.isEmpty ? nil : phone
+        )
+        onDismiss()
+        dismiss()
+    }
+    
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 0) {
             Text("Novi profil")
-                .font(.title2.bold())
-                .foregroundColor(accentColor)
+                .font(.system(size: 20, weight: .bold))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [Color(hex: "e11d1d"), Color(hex: "ea580c"), Color(hex: "f97316")],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .padding(.top, 20)
+                .padding(.bottom, 8)
             
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Ime")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                TextField("Ime profila", text: $name)
-                    .textFieldStyle(.roundedBorder)
-                    .foregroundColor(.black)
+            Text("Sve što je za moderni web browser bitno")
+                .font(.system(size: 12))
+                .foregroundColor(.white.opacity(0.6))
+                .padding(.bottom, 20)
+            
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 16) {
+                    ProfileFormField(label: "Ime", placeholder: "Ime", text: $firstName)
+                    ProfileFormField(label: "Prezime", placeholder: "Prezime", text: $lastName)
+                    ProfileFormField(label: "Srednje ime", placeholder: "Srednje ime (opcionalno)", text: $middleName)
+                    ProfileFormField(label: "Naziv", placeholder: "Kako želite da se prikažete (npr. Ivan P.)", text: $preferredDisplayName)
+                    ProfileFormField(label: "Email adresa", placeholder: "email@primjer.hr", text: $email)
+                    ProfileFormField(label: "Mobitel", placeholder: "+385 9x xxx xxxx", text: $phone)
+                }
+                .padding(.horizontal, 24)
             }
-            
-            Spacer()
+            .frame(maxHeight: 320)
             
             HStack(spacing: 12) {
                 Button("Odustani") {
@@ -130,23 +192,20 @@ struct AddProfileView: View {
                 }
                 .foregroundColor(.white.opacity(0.8))
                 
-                Button("Dodaj") {
-                    let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !trimmed.isEmpty else { return }
-                    ProfileManager.shared.addProfile(name: trimmed)
-                    onDismiss()
-                    dismiss()
+                Button("Dodaj profil") {
+                    createProfile()
                 }
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(.white)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 8)
-                .background(RoundedRectangle(cornerRadius: 8).fill(accentColor))
-                .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 10)
+                .background(RoundedRectangle(cornerRadius: 10).fill(accentColor))
+                .disabled(!canCreate)
             }
+            .padding(24)
         }
-        .padding(24)
-        .frame(width: 320, height: 220)
-        .background(Color.black.opacity(0.95))
+        .frame(width: 400, height: 520)
+        .background(Color.black.opacity(0.96))
     }
 }
 

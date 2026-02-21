@@ -7,22 +7,26 @@
 
 import SwiftUI
 
-/// Prikazuje instaliranu aplikaciju – učitava Swift (DSL), parsira i renderira. Ne dira se logika appova.
+/// Prikazuje instaliranu aplikaciju – učitava Swift (DSL), parsira i renderira. Logika u InstalledAppViewModel.
 struct InstalledAppView: View {
     let app: InstalledApp
     @Binding var currentAddress: String
     var onBack: (() -> Void)?
     var onSwitchToDevMode: (() -> Void)?
     
-    @State private var state: ViewState = .loading
+    @Environment(\.appInstallService) private var appInstallService
+    @Environment(\.consoleStore) private var consoleStore
+    @StateObject private var viewModel: InstalledAppViewModel
+    
+    init(app: InstalledApp, currentAddress: Binding<String>, onBack: (() -> Void)?, onSwitchToDevMode: (() -> Void)?) {
+        self.app = app
+        _currentAddress = currentAddress
+        self.onBack = onBack
+        self.onSwitchToDevMode = onSwitchToDevMode
+        _viewModel = StateObject(wrappedValue: InstalledAppViewModel(app: app))
+    }
     
     private var accentColor: Color { AlexandriaTheme.accentColor }
-    
-    enum ViewState {
-        case loading
-        case app(AlexandriaViewNode)
-        case error(String, source: String?)
-    }
     
     var body: some View {
         Group {
@@ -56,15 +60,16 @@ struct InstalledAppView: View {
         .task(id: app.id) {
             currentAddress = app.name
             if app.webURL == nil || app.webURL?.isEmpty == true {
-                await loadAndRender()
+                viewModel.loadIfNeeded(appInstallService: appInstallService, consoleStore: consoleStore)
             }
         }
+        .id(app.id)
     }
     
     @ViewBuilder
     private var dslContent: some View {
         ZStack {
-            switch state {
+            switch viewModel.state {
             case .loading:
                 VStack(spacing: 16) {
                     ProgressView()
@@ -90,7 +95,7 @@ struct InstalledAppView: View {
                         Spacer()
                     }
                     .background(Color.black.opacity(0.5))
-                    AlexandriaRenderer(node: node)
+                    AlexandriaRenderer(node: node, console: consoleStore)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .padding(24)
                         .background(Color(hex: "1a1a1a"))
@@ -105,9 +110,15 @@ struct InstalledAppView: View {
                     Text(message)
                         .foregroundColor(.white.opacity(0.9))
                         .multilineTextAlignment(.center)
-                    if let src = source {
+                    if app.canViewOrSaveSource, let src = source {
                         CodeView(source: src)
                             .frame(maxWidth: .infinity, maxHeight: 300)
+                    } else if !app.canViewOrSaveSource {
+                        Text("Izvorni kod nije dostupan za pregled (LLVM IR).")
+                            .font(.system(size: 13))
+                            .foregroundColor(.white.opacity(0.6))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
                     }
                     HStack(spacing: 16) {
                         Button("Natrag") { onBack?() }
@@ -122,19 +133,4 @@ struct InstalledAppView: View {
         }
     }
     
-    private func loadAndRender() async {
-        do {
-            let source = try AppInstallService.shared.loadSource(for: app)
-            let node = try AlexandriaParser(source: source).parse()
-            await MainActor.run {
-                state = .app(node)
-            }
-        } catch {
-            await MainActor.run {
-                ConsoleStore.shared.log("App greška: \(error.localizedDescription)", type: .error)
-                let src = (try? AppInstallService.shared.loadSource(for: app))
-                state = .error(error.localizedDescription, source: src)
-            }
-        }
-    }
 }
